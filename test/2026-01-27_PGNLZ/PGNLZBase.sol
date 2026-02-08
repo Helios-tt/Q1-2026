@@ -17,7 +17,7 @@ import "src/shared/interfaces.sol";
 
 abstract contract PGNLZBase is BaseTest {
     function setUp() public virtual {
-        vm.createSelectFork("bsc", 77721026);
+        vm.createSelectFork("bsc", 77_721_026);
         target = 0x0000000000000000000000000000000000000000;
         txHash = 0xc7270212846136f3d103d1802a30cdaa6f8f280c4bce02240e99806101e08121;
     }

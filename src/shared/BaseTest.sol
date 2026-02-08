@@ -26,6 +26,7 @@ contract BaseTest is Test {
         string symbol;
         uint8 decimals;
     }
+
     ProfitRecord[] internal profitRecords;
 
     struct ChainInfo {
@@ -79,11 +80,7 @@ contract BaseTest is Test {
         }
     }
 
-    function _logTokenBalance(
-        address token,
-        address account,
-        string memory label
-    ) internal {
+    function _logTokenBalance(address token, address account, string memory label) internal {
         (string memory symbol, uint256 balance, uint8 decimals) = _getTokenData(token, account);
         emit log_named_decimal_uint(string(abi.encodePacked(label, " ", symbol, " Balance")), balance, decimals);
     }
@@ -201,11 +198,7 @@ contract BaseTest is Test {
         vm.writeJson(finalJson, fileName);
     }
 
-    function _writeExploitResult(
-        string memory tag,
-        uint256 gasUsed,
-        StorageDelta[] memory deltas
-    ) internal {
+    function _writeExploitResult(string memory tag, uint256 gasUsed, StorageDelta[] memory deltas) internal {
         string memory jsonObj = "result";
 
         // Basic info
@@ -351,10 +344,7 @@ contract BaseTest is Test {
         vm.writeFile(profitFile, finalJson);
     }
 
-    function _writeStorageDeltas(
-        string memory tag,
-        StorageDelta[] memory deltas
-    ) internal {
+    function _writeStorageDeltas(string memory tag, StorageDelta[] memory deltas) internal {
         string memory deltasJson = "[";
         for (uint256 i = 0; i < deltas.length && i < 50; i++) {
             if (i > 0) deltasJson = string(abi.encodePacked(deltasJson, ","));
@@ -381,11 +371,7 @@ contract BaseTest is Test {
 
     /// @notice Write partial result when replay/exploit fails (reverts)
     /// @dev Captures available data even on failure for debugging
-    function _writePartialResult(
-        string memory tag,
-        string memory revertReason,
-        uint256 gasUsed
-    ) internal {
+    function _writePartialResult(string memory tag, string memory revertReason, uint256 gasUsed) internal {
         (string memory diagnosis, string memory guide) = _diagnoseRevert(revertReason);
 
         string memory jsonObj = "partial";
@@ -473,10 +459,7 @@ contract BaseTest is Test {
     }
 
     /// @notice Check if haystack contains needle (case-insensitive)
-    function _containsIgnoreCase(
-        bytes memory haystack,
-        string memory needle
-    ) internal pure returns (bool) {
+    function _containsIgnoreCase(bytes memory haystack, string memory needle) internal pure returns (bool) {
         bytes memory needleBytes = bytes(needle);
         if (needleBytes.length > haystack.length) return false;
 
@@ -569,7 +552,9 @@ contract BaseTest is Test {
         // Add tracked slots with before/after values
         for (uint256 i = 0; i < trackedSlots.length; i++) {
             deltas[idx++] = StorageDelta({
-                slot: trackedSlots[i], valueBefore: beforeValues[i], valueAfter: vm.load(target, trackedSlots[i])
+                slot: trackedSlots[i],
+                valueBefore: beforeValues[i],
+                valueAfter: vm.load(target, trackedSlots[i])
             });
         }
 
@@ -608,19 +593,11 @@ contract BaseTest is Test {
         }
     }
 
-    function logTokenBalance(
-        address token,
-        address account,
-        string memory label
-    ) internal {
+    function logTokenBalance(address token, address account, string memory label) internal {
         _logTokenBalance(token, account, label);
     }
 
-    function logMultipleTokenBalances(
-        address[] memory tokens,
-        address account,
-        string memory label
-    ) internal {
+    function logMultipleTokenBalances(address[] memory tokens, address account, string memory label) internal {
         emit log_string(string(abi.encodePacked("=== ", label, " ===")));
         for (uint256 i = 0; i < tokens.length; i++) {
             _logTokenBalance(tokens[i], account, "");
@@ -630,19 +607,13 @@ contract BaseTest is Test {
     /// @notice Record profit for a specific token
     /// @param token Token address (address(0) for native ETH)
     /// @param amount Amount of profit in token's smallest unit
-    function addProfit(
-        address token,
-        uint256 amount
-    ) internal {
+    function addProfit(address token, uint256 amount) internal {
         (string memory symbol,, uint8 decimals) = _getTokenData(token, address(0));
         profitRecords.push(ProfitRecord({token: token, amount: amount, symbol: symbol, decimals: decimals}));
     }
 
     /// @notice Record profits for multiple tokens at once
-    function addProfits(
-        address[] memory tokens,
-        uint256[] memory amounts
-    ) internal {
+    function addProfits(address[] memory tokens, uint256[] memory amounts) internal {
         require(tokens.length == amounts.length, "Length mismatch");
         for (uint256 i = 0; i < tokens.length; i++) {
             addProfit(tokens[i], amounts[i]);

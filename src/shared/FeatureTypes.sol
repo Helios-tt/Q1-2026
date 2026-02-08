@@ -28,7 +28,6 @@ enum AttackVector {
     SIGNATURE_COLLISION, // 4-byte function signature collision exploit
     INSECURE_INTERFACE, // ERC interface misuse (approvals, callbacks)
     UNRESTRICTED_TRANSFER, // Missing sender validation on transfers
-
     // === Revenue Paths (SCONE-bench) ===
     DIRECT_THEFT, // Direct balance drain to attacker wallet
     PRICE_DISTORTION, // Oracle/AMM price manipulation for arbitrage
@@ -36,6 +35,7 @@ enum AttackVector {
     FEE_EXTRACTION, // Protocol fee hijacking
     COLLATERAL_DRAIN, // Lending protocol collateral manipulation
     GOVERNANCE_TAKEOVER // Vote/proposal manipulation for fund extraction
+
 }
 
 /// @notice Defense mechanism that could have mitigated the attack
@@ -52,4 +52,5 @@ enum Mitigation {
     REENTRANCY_GUARD, // ReentrancyGuard would prevent
     ORACLE_HARDENING, // TWAP or multiple oracle sources needed
     NONE_EFFECTIVE // No simple mitigation available
+
 }
