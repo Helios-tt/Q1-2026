@@ -282,15 +282,12 @@ jobs:
 
           DIR="test/${DATE}_${PROTOCOL}"
           mkdir -p "$DIR"
-          mkdir -p "data/verified"
-          mkdir -p "data/local"
 
-          cat > "$DIR/${PROTOCOL}Base.sol" << SOLEOF
+          cat > "$DIR/${PROTOCOL}.sol" << SOLEOF
           // SPDX-License-Identifier: UNLICENSED
           pragma solidity ^0.8.10;
 
           import "src/shared/BaseTest.sol";
-          import "src/shared/FeatureTypes.sol";
           import "src/shared/interfaces.sol";
 
           /*
@@ -303,63 +300,16 @@ jobs:
           @GasUsed: ${GAS_USED}
           */
 
-          abstract contract ${PROTOCOL}Base is BaseTest {
-              function setUp() public virtual {
+          contract ${PROTOCOL}Test is BaseTest {
+              function setUp() public {
                   vm.createSelectFork("${RPC_ALIAS}", ${FORK_BLOCK});
                   target = ${TARGET};
-                  txHash = ${TXHASH};
-              }
-          }
-          SOLEOF
-
-          INPUT_HEX="${INPUT_DATA#0x}"
-          cat > "$DIR/Replay.t.sol" << SOLEOF
-          // SPDX-License-Identifier: UNLICENSED
-          pragma solidity ^0.8.10;
-
-          import "./${PROTOCOL}Base.sol";
-
-          contract ReplayTest is ${PROTOCOL}Base {
-              address constant ATTACKER_ADDR = ${ATTACKER};
-              address constant TARGET_ADDR = ${TARGET};
-              bytes constant INPUT_DATA = hex"${INPUT_HEX}";
-
-              function testReplay() public {
-                  beneficiary = ATTACKER_ADDR;
-                  if (fundingToken == address(0)) vm.deal(address(this), 0);
-                  _logTokenBalance(fundingToken, beneficiary, "[REPLAY] Before");
-                  
-                  uint256 gasBefore = gasleft();
-                  try this._executeReplay() {
-                      uint256 gasUsed = gasBefore - gasleft();
-                      (string memory symbol, uint256 balance, uint8 decimals) = _getTokenData(fundingToken, beneficiary);
-                      _logTokenBalance(fundingToken, beneficiary, "[REPLAY] After");
-                      _writeExecutionResult("REPLAY", gasUsed, balance, symbol, decimals);
-                  } catch Error(string memory reason) {
-                      uint256 gasUsed = gasBefore - gasleft();
-                      _writePartialResult("REPLAY_FAILED", reason, gasUsed);
-                      emit log_string(string(abi.encodePacked("[REPLAY] Reverted: ", reason)));
-                      revert(reason);
-                  } catch (bytes memory) {
-                      uint256 gasUsed = gasBefore - gasleft();
-                      _writePartialResult("REPLAY_FAILED", "Low-level revert", gasUsed);
-                      emit log_string("[REPLAY] Low-level revert");
-                      revert("Low-level revert");
-                  }
               }
 
-              function _executeReplay() external {
-                  vm.startPrank(ATTACKER_ADDR);
-                  (bool success, bytes memory returnData) = TARGET_ADDR.call(INPUT_DATA);
-                  if (!success) {
-                      if (returnData.length > 0) {
-                          assembly {
-                              revert(add(returnData, 32), mload(returnData))
-                          }
-                      }
-                      revert("Replay failed");
-                  }
-                  vm.stopPrank();
+              function testExploit() public balanceLog {
+                  // TODO: Implement exploit
+                  // Set beneficiary if needed: beneficiary = address(0x123);
+                  // Profit will be automatically calculated and logged
               }
           }
           SOLEOF
@@ -384,74 +334,14 @@ jobs:
 
           ## Status
           - [x] Workspace initialized
-          - [ ] Replay verified
           - [ ] Analysis complete
+
+          ## Workspace
+          \`\`\`bash
+          git fetch origin && git checkout ${{ env.TARGET_BRANCH }}
+          forge test -vvv
+          \`\`\`
           MDEOF
-
-          for auditor in $(echo "$AUDITORS_JSON" | jq -r '.[]'); do
-            cat > "$DIR/PoC_${auditor}.t.sol" << SOLEOF
-          // SPDX-License-Identifier: UNLICENSED
-          pragma solidity ^0.8.10;
-
-          import "./${PROTOCOL}Base.sol";
-
-          contract PoC_${auditor} is ${PROTOCOL}Base {
-              function testExploit() public exploit {
-                  addVulnerability(VulnerabilityType.UNKNOWN);
-                  addAttackVector(AttackVector.UNKNOWN);
-                  addMitigation(Mitigation.UNKNOWN);
-              }
-          }
-          SOLEOF
-          done
-
-      - name: Verify Replay
-        id: verify
-        env:
-          INFURA_KEY: ${{ secrets.INFURA_API_KEY }}
-        run: |
-          if [ -n "$INFURA_KEY" ]; then
-            export MAINNET_RPC_URL="https://mainnet.infura.io/v3/$INFURA_KEY"
-            export BASE_RPC_URL="https://base-mainnet.infura.io/v3/$INFURA_KEY"
-            export ARBITRUM_RPC_URL="https://arbitrum-mainnet.infura.io/v3/$INFURA_KEY"
-            export OPTIMISM_RPC_URL="https://optimism-mainnet.infura.io/v3/$INFURA_KEY"
-            export POLYGON_RPC_URL="https://polygon-mainnet.infura.io/v3/$INFURA_KEY"
-            export BSC_RPC_URL="https://bsc-mainnet.infura.io/v3/$INFURA_KEY"
-            export AVALANCHE_RPC_URL="https://avalanche-mainnet.infura.io/v3/$INFURA_KEY"
-            export FANTOM_RPC_URL="https://fantom-mainnet.infura.io/v3/$INFURA_KEY"
-            export LINEA_RPC_URL="https://linea-mainnet.infura.io/v3/$INFURA_KEY"
-            export BLAST_RPC_URL="https://blast-mainnet.infura.io/v3/$INFURA_KEY"
-            export CELO_RPC_URL="https://celo-mainnet.infura.io/v3/$INFURA_KEY"
-            export ZKSYNC_RPC_URL="https://zksync-mainnet.infura.io/v3/$INFURA_KEY"
-            export MANTLE_RPC_URL="https://mantle-mainnet.infura.io/v3/$INFURA_KEY"
-            export OPBNB_RPC_URL="https://opbnb-mainnet.infura.io/v3/$INFURA_KEY"
-            export SCROLL_RPC_URL="https://scroll-mainnet.infura.io/v3/$INFURA_KEY"
-            export SEI_RPC_URL="https://sei-mainnet.infura.io/v3/$INFURA_KEY"
-            export PALM_RPC_URL="https://palm-mainnet.infura.io/v3/$INFURA_KEY"
-          else
-            export MAINNET_RPC_URL="https://eth.llamarpc.com"
-            export BASE_RPC_URL="https://mainnet.base.org"
-            export ARBITRUM_RPC_URL="https://arb1.arbitrum.io/rpc"
-            export OPTIMISM_RPC_URL="https://mainnet.optimism.io"
-            export POLYGON_RPC_URL="https://polygon-rpc.com"
-            export BSC_RPC_URL="https://bsc-dataseed.binance.org"
-            export AVALANCHE_RPC_URL="https://api.avax.network/ext/bc/C/rpc"
-            export FANTOM_RPC_URL="https://rpc.ftm.tools"
-            export LINEA_RPC_URL="https://rpc.linea.build"
-            export BLAST_RPC_URL="https://rpc.blast.io"
-            export CELO_RPC_URL="https://forno.celo.org"
-            export ZKSYNC_RPC_URL="https://mainnet.era.zksync.io"
-            export MANTLE_RPC_URL="https://rpc.mantle.xyz"
-            export OPBNB_RPC_URL="https://opbnb-mainnet-rpc.binance.org"
-            export SCROLL_RPC_URL="https://rpc.scroll.io"
-            export SEI_RPC_URL="https://evm.sei.io"
-            export PALM_RPC_URL="https://palm-mainnet.public.blastapi.io"
-          fi
-          if forge test --match-test testReplay -vvv 2>&1 | tee replay_result.txt | grep -q "PASS"; then
-            echo "REPLAY_STATUS=PASS" >> $GITHUB_ENV
-          else
-            echo "REPLAY_STATUS=FAIL" >> $GITHUB_ENV
-          fi
 
       - name: Commit and Push
         run: |
@@ -459,133 +349,51 @@ jobs:
           git commit -m "init: ${{ steps.parse.outputs.protocol }}"
           git push origin ${{ env.TARGET_BRANCH }}
 
-      - name: Extract Replay Error
-        if: env.REPLAY_STATUS == 'FAIL'
-        id: replay_error
-        run: |
-          if [ -f replay_result.txt ]; then
-            # Match [Revert], [NotActivated], EvmError, vm.writeJson patterns
-            REVERT_REASON=$(grep -oP '(\[Revert\] |\[NotActivated\] |EvmError: |vm\.writeJson: )\K.*' replay_result.txt | head -1)
-            if [ -z "$REVERT_REASON" ]; then
-              REVERT_REASON="Unknown"
-            fi
-            echo "revert_reason=$REVERT_REASON" >> $GITHUB_OUTPUT
-            
-            case "$REVERT_REASON" in
-              *"Owner"*|*"owner"*|*"Ownable"*)
-                echo "diagnosis=Permission issue" >> $GITHUB_OUTPUT
-                echo "guide=Use vm.prank(ownerAddress)" >> $GITHUB_OUTPUT
-                ;;
-              *"balance"*|*"Insufficient"*|*"underflow"*)
-                echo "diagnosis=Insufficient balance" >> $GITHUB_OUTPUT
-                echo "guide=Use vm.deal or deal()" >> $GITHUB_OUTPUT
-                ;;
-              *"NotActivated"*)
-                echo "diagnosis=EVM opcode not supported" >> $GITHUB_OUTPUT
-                echo "guide=Update evm_version in foundry.toml (try cancun or prague)" >> $GITHUB_OUTPUT
-                ;;
-              *"No such file or directory"*|*"writeJson"*)
-                echo "diagnosis=Output directory missing" >> $GITHUB_OUTPUT
-                echo "guide=Directory auto-created on retry, or run: mkdir -p data/local data/verified" >> $GITHUB_OUTPUT
-                ;;
-              *)
-                echo "diagnosis=Unknown revert" >> $GITHUB_OUTPUT
-                echo "guide=Analyze trace with -vvvv" >> $GITHUB_OUTPUT
-                ;;
-            esac
-          else
-            echo "revert_reason=Unknown" >> $GITHUB_OUTPUT
-            echo "diagnosis=No trace found" >> $GITHUB_OUTPUT
-            echo "guide=Run locally" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Update Smart Labels
-        uses: actions/github-script@v6
-        env:
-          IS_FLASHLOAN: ${{ steps.metadata.outputs.is_flashloan }}
-          GAS_USED: ${{ steps.metadata.outputs.gas_used }}
-          REPLAY_STATUS: ${{ env.REPLAY_STATUS }}
-        with:
-          script: |
-            const labelsToAdd = [];
-            const isFlashloan = process.env.IS_FLASHLOAN === 'true';
-            const gasUsed = parseInt(process.env.GAS_USED) || 0;
-            const replayStatus = process.env.REPLAY_STATUS;
-
-            if (isFlashloan) labelsToAdd.push('flashloan');
-            if (gasUsed > 500000) labelsToAdd.push('complex');
-            if (replayStatus === 'PASS') labelsToAdd.push('verified');
-            else labelsToAdd.push('needs-manual-poc');
-
-            if (labelsToAdd.length > 0) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                labels: labelsToAdd
-              });
-            }
-
       - name: Notify
         uses: actions/github-script@v6
         env:
           TARGET_BRANCH: ${{ env.TARGET_BRANCH }}
           BLOCK: ${{ steps.metadata.outputs.block_number }}
           DATE: ${{ steps.metadata.outputs.date }}
-          REPLAY_STATUS: ${{ env.REPLAY_STATUS }}
+          CHAIN_ID: ${{ steps.parse.outputs.chain_id }}
+          TXHASH: ${{ steps.parse.outputs.txhash }}
+          ATTACKER: ${{ steps.metadata.outputs.attacker }}
+          TARGET: ${{ steps.metadata.outputs.target }}
+          PROTOCOL: ${{ steps.parse.outputs.protocol }}
           AUDITORS_JSON: ${{ steps.parse.outputs.auditors }}
-          REVERT_REASON: ${{ steps.replay_error.outputs.revert_reason }}
-          DIAGNOSIS: ${{ steps.replay_error.outputs.diagnosis }}
-          GUIDE: ${{ steps.replay_error.outputs.guide }}
-          GAS_USED: ${{ steps.metadata.outputs.gas_used }}
-          LOGS_COUNT: ${{ steps.metadata.outputs.logs_count }}
-          IS_FLASHLOAN: ${{ steps.metadata.outputs.is_flashloan }}
         with:
           script: |
             const branch = process.env.TARGET_BRANCH;
             const block = process.env.BLOCK;
             const date = process.env.DATE;
-            const replayStatus = process.env.REPLAY_STATUS;
+            const chainId = process.env.CHAIN_ID;
+            const txhash = process.env.TXHASH;
+            const attacker = process.env.ATTACKER;
+            const target = process.env.TARGET;
+            const protocol = process.env.PROTOCOL;
             const auditors = JSON.parse(process.env.AUDITORS_JSON);
             const mentions = auditors.map(a => `@${a}`).join(' ');
-            const gasUsed = process.env.GAS_USED;
-            const logsCount = process.env.LOGS_COUNT;
-            const isFlashloan = process.env.IS_FLASHLOAN === 'true' ? 'Yes' : 'No';
-            
+
             const lines = [
-              "**Workspace Ready**",
+              `**Workspace Ready for ${protocol}**`,
               "",
-              "| Item | Value |",
-              "|------|-------|",
-              `| Branch | \`${branch}\` |`,
+              "| Field | Value |",
+              "|-------|-------|",
               `| Date | ${date} |`,
+              `| Chain | ${chainId} |`,
               `| Block | ${block} |`,
-              `| Gas Used | ${gasUsed} |`,
-              `| Logs | ${logsCount} |`,
-              `| Flashloan | ${isFlashloan} |`,
-              `| Replay | ${replayStatus === 'PASS' ? '✅ Verified' : '❌ Failed'} |`,
+              `| Tx | \`${txhash}\` |`,
+              `| Attacker | \`${attacker}\` |`,
+              `| Target | \`${target}\` |`,
               "",
               `**Assigned:** ${mentions}`,
               "",
+              "**Workspace:**",
               "```bash",
               `git fetch origin && git checkout ${branch}`,
+              "forge test -vvv",
               "```"
             ];
-
-            if (replayStatus !== 'PASS') {
-              lines.push(
-                "",
-                "---",
-                "",
-                "**Replay Failed - Manual PoC Required**",
-                "",
-                "| Analysis | Details |",
-                "|----------|---------|",
-                `| Reason | \`${process.env.REVERT_REASON}\` |`,
-                `| Diagnosis | ${process.env.DIAGNOSIS} |`,
-                `| Guide | ${process.env.GUIDE} |`
-              );
-            }
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,

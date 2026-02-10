@@ -2,7 +2,7 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-fs_permissions = [{ access = "read", path = "./"}, { access = "write", path = "./data/"}]
+fs_permissions = [{ access = "read", path = "./"}]
 auto_detect_solc = true
 evm_version = 'cancun'
 optimizer = true
