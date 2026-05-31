@@ -6,10 +6,10 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 
 - **Chain**: ethereum (chain_id=1)
 - **Tx hash**: `0x06cc0f36159d7094359d88fe1d43cda601e8644282ba305c5ffbd013b524c6b4`
-- **Block**: unknown
+- **Block**: 25207242
 - **Status**: `pass`
-- **Elapsed**: 133.36s (133361 ms)
-- **Finding**: RCA blocked
+- **Elapsed**: 303.06s (303059 ms)
+- **Finding**: Root cause blocked by failed PoC static validation gate
 
 ## Signal context
 
@@ -30,23 +30,23 @@ Detector summary:
 
 ## Pipeline timing
 
-- **Orchestrator wall time**: 150 ms
+- **Orchestrator wall time**: 173.51s (173509 ms)
 
-- **Current stage-duration sum**: 133.36s (133361 ms)
+- **Current stage-duration sum**: 303.06s (303059 ms)
 
 | Stage | Artifact | Duration | Status |
 |---|---|---:|---|
-| `1` | `cefg` | 120.67s (120669 ms) | `success` |
+| `1` | `cefg` | 119.84s (119842 ms) | `success` |
 | `2` | `localize` | 19 ms | `success` |
 | `3` | `lift` | 52 ms | `success` |
-| `4` | `flow_context` | 1.67s (1672 ms) | `success` |
-| `5` | `enrich` | 4.61s (4609 ms) | `success` |
+| `4` | `flow_context` | 1.71s (1706 ms) | `success` |
+| `5` | `enrich` | 2.01s (2007 ms) | `success` |
 | `6` | `context_pack` | 2 ms | `success` |
-| `7` | `asset_delta` | 23 ms | `success` |
+| `7` | `asset_delta` | 22 ms | `success` |
 | `8` | `poc_sketch` | 19 ms | `success` |
-| `9` | `semantic` | 61 ms | `success` |
-| `agent_poc` | `agent_poc` | 6.08s (6085 ms) | `success` |
-| `rca` | `rca` | 150 ms | `success` |
+| `9` | `semantic` | 63 ms | `success` |
+| `agent_poc` | `agent_poc` | 5.82s (5818 ms) | `success` |
+| `rca` | `rca` | 173.51s (173509 ms) | `success` |
 
 ## Reproduction quality
 
@@ -56,7 +56,7 @@ Detector summary:
 - **Forge test**: `pass`
 - **Proof kind**: `economic_proof`
 - **RCA status**: `blocked` / `blocked`
-- **RCA confidence**: `unknown`
+- **RCA confidence**: `low`
 
 ## Economic reproduction
 
@@ -68,7 +68,11 @@ Detector summary:
 
 ## Attack narrative
 
-_No attack-flow narrative artifact was available; see the PoC and RCA artifacts for raw evidence._
+_No standalone `attack_flow.md` was available; this section is assembled from RCA `attack_summary` fields._
+
+| Field | Value |
+|---|---|
+| Callback is root cause | false |
 
 ## Multi-leg reconciliation
 
@@ -76,14 +80,24 @@ _No asset legs were recorded._
 
 ## Root cause analysis
 
-# RCA blocked
+- **Title**: Root cause blocked by failed PoC static validation gate
+- **Severity**: `low`
+- **Confidence**: `low`
+- **Violated invariant**: unknown; not analyzed because the verified-PoC gate failed
 
-- stage: `rca`
-- status: `blocked`
-- validation: `blocked`
-- blocker: PoC blocked: Generated PoC.t.sol builds and testPoC passes; readability findings were recorded as product warnings instead of blocking the economic PoC.
+### Final root cause
 
-Internal artifacts are available under `artifacts/rca/`.
+No root-cause claim is made. The economic PoC run reports pass statuses for execution, build, test, economic reproduction, and proof_kind, but artifacts/agent_poc/result.json has static_validation.status=fail. Under the required LumosKit gate, treating this as a verified economic proof would be invalid and RCA would be speculation.
+
+### Recommended fixes
+
+- Resolve the PoC static-validation failure and rerun RCA; no contract patch recommendation is responsible until the economic proof gate is satisfied.
+
+### Limitations
+
+- PoC unverified — root cause analysis would be speculation
+- static_validation.status is fail in artifacts/agent_poc/result.json
+- No source or pseudocode branch was selected as root cause because analysis was blocked before frame-level reasoning
 
 ## Artifacts
 
@@ -92,8 +106,8 @@ Internal artifacts are available under `artifacts/rca/`.
 | Bundle index | `README.md` | generated |
 | Machine run summary | `report/run_summary.json` | generated |
 | Final integrated report | `report/REPORT.md` | generated |
-| RCA | `report/RCA.md` | generated fallback |
-| RCA structured report | `report/report.json` | missing optional |
+| RCA | `report/RCA.md` | included |
+| RCA structured report | `report/report.json` | included |
 | PoC | `poc/PoC.t.sol` | included |
 | PoC base support | `poc/LumosPoCBase.sol` | included |
 | Asset deltas | `evidence/asset_deltas.json` | included |
