@@ -1,17 +1,17 @@
-# LumosKit Run Report — base 0x07ba2ccf…a0671d
+# LumosKit Run Report — bsc 0x07ba2ccf…a0671d
 
 _Deterministic final report assembled from existing LumosKit outputs; this finalize step does not call an agent._
 
 ## Case overview
 
-- **Chain**: base (chain_id=56)
+- **Chain**: bsc (chain_id=56)
 - **Tx hash**: `0x07ba2ccf2b5c1aaca4c017af4fe87762a73ef7177f6ea8bb569367e908a0671d`
 - **Block**: unknown
 - **Final quality**: `blocked`
 - **Product/PoC gate**: `pass`
 - **Final-quality basis**: `poc_and_rca`
-- **Final-quality reason**: Verified economic PoC exists, but RCA is blocked: missing /srv/helios/data/outputs/260605_base_auto-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_base_auto-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_base_auto-3/artifacts/rca/report.json
-- **Elapsed**: 90.75s (90755 ms)
+- **Final-quality reason**: Verified economic PoC exists, but RCA is blocked: missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/report.json
+- **Elapsed**: 94.91s (94911 ms)
 - **Finding**: RCA blocked
 
 ## Signal context
@@ -22,23 +22,23 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 
 ## Pipeline timing
 
-- **Orchestrator wall time**: 31.05s (31046 ms)
+- **Orchestrator wall time**: 31.65s (31654 ms)
 
-- **Current stage-duration sum**: 90.75s (90755 ms)
+- **Current stage-duration sum**: 94.91s (94911 ms)
 
 | Stage | Artifact | Duration | Status |
 |---|---|---:|---|
-| `1` | `cefg` | 27.79s (27791 ms) | `success` |
+| `1` | `cefg` | 23.35s (23348 ms) | `success` |
 | `2` | `localize` | 66 ms | `success` |
-| `3` | `lift` | 215 ms | `success` |
-| `4` | `flow_context` | 792 ms | `success` |
-| `5` | `enrich` | 6.96s (6960 ms) | `success` |
-| `6` | `context_pack` | 6 ms | `success` |
-| `7` | `asset_delta` | 63 ms | `success` |
+| `3` | `lift` | 212 ms | `success` |
+| `4` | `flow_context` | 11.53s (11534 ms) | `success` |
+| `5` | `enrich` | 4.59s (4589 ms) | `success` |
+| `6` | `context_pack` | 7 ms | `success` |
+| `7` | `asset_delta` | 57 ms | `success` |
 | `8` | `poc_sketch` | 60 ms | `success` |
-| `9` | `semantic` | 289 ms | `success` |
-| `agent_poc` | `agent_poc` | 23.47s (23467 ms) | `success` |
-| `rca` | `rca` | 31.05s (31046 ms) | `success` |
+| `9` | `semantic` | 287 ms | `success` |
+| `agent_poc` | `agent_poc` | 23.10s (23097 ms) | `success` |
+| `rca` | `rca` | 31.65s (31654 ms) | `success` |
 
 ## Reproduction quality
 
@@ -120,8 +120,8 @@ _… truncated in final report; see source artifact for full text._
 
 | Source | Direction | Holder | Role | Token | Delta | USD value |
 |---|---|---|---|---|---:|---:|
-| incident_drain | loss | `0x90bfc1dbc878ba54858ba8a635b3daebd2ac6c01` | `storage_contract` | `unknown` | -35041.106262669601832715 | $-35007.23 |
-| incident_drain | loss | `0xd2453ff82e1c5b568ddb260f1f0bb95169895428` | `storage_contract` | `unknown` | -359121820.4459999965 | N/A |
+| incident_drain | loss | `0x90bfc1dbc878ba54858ba8a635b3daebd2ac6c01` | `storage_contract` | `USDT` | -35041.106262669601832715 | $-35007.23 |
+| incident_drain | loss | `0xd2453ff82e1c5b568ddb260f1f0bb95169895428` | `storage_contract` | `DTXT` | -359121820.4459999965 | N/A |
 
 
 ## Root cause analysis
@@ -131,7 +131,7 @@ _… truncated in final report; see source artifact for full text._
 - stage: `rca`
 - status: `blocked`
 - validation: `blocked`
-- blocker: missing /srv/helios/data/outputs/260605_base_auto-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_base_auto-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_base_auto-3/artifacts/rca/report.json
+- blocker: missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/report.json
 
 Internal artifacts are available under `artifacts/rca/`.
 

