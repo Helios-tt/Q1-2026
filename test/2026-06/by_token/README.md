@@ -6,13 +6,13 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 
 - **Chain**: bsc (chain_id=56)
 - **Tx hash**: `0xe31c681eee764fb94b1b6bda3bbb0e4f25acb129c19040b9f58ad30541980979`
-- **Block**: unknown
-- **Final quality**: `blocked`
+- **Block**: 102329719
+- **Final quality**: `pass`
 - **Product/PoC gate**: `pass`
 - **Final-quality basis**: `poc_and_rca`
-- **Final-quality reason**: Verified economic PoC exists, but RCA is blocked: missing /srv/helios/data/outputs/260605_bsc_by_token-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_bsc_by_token-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_bsc_by_token-3/artifacts/rca/report.json
-- **Elapsed**: 76.23s (76235 ms)
-- **Finding**: RCA blocked
+- **Final-quality reason**: Verified economic PoC and complete RCA.
+- **Elapsed**: 590.15s (590152 ms)
+- **Finding**: Public BYToken auto-burn can burn AMM pool inventory and force reserve sync
 
 ## Signal context
 
@@ -33,9 +33,9 @@ Detector summary:
 
 ## Pipeline timing
 
-- **Orchestrator wall time**: 31.07s (31070 ms)
+- **Orchestrator wall time**: 544.99s (544986 ms)
 
-- **Current stage-duration sum**: 76.23s (76235 ms)
+- **Current stage-duration sum**: 590.15s (590152 ms)
 
 | Stage | Artifact | Duration | Status |
 |---|---|---:|---|
@@ -49,7 +49,7 @@ Detector summary:
 | `8` | `poc_sketch` | 54 ms | `success` |
 | `9` | `semantic` | 199 ms | `success` |
 | `agent_poc` | `agent_poc` | 10.40s (10402 ms) | `success` |
-| `rca` | `rca` | 31.07s (31070 ms) | `success` |
+| `rca` | `rca` | 544.99s (544987 ms) | `success` |
 
 ## Reproduction quality
 
@@ -58,8 +58,8 @@ Detector summary:
 - **Forge build**: `pass`
 - **Forge test**: `pass`
 - **Proof kind**: `economic_proof`
-- **RCA status**: `blocked` / `blocked`
-- **RCA confidence**: `unknown`
+- **RCA status**: `complete` / `complete`
+- **RCA confidence**: `high`
 
 ## Economic reproduction
 
@@ -138,14 +138,28 @@ _… truncated in final report; see source artifact for full text._
 
 ## Root cause analysis
 
-# RCA blocked
+- **Title**: Public BYToken auto-burn can burn AMM pool inventory and force reserve sync
+- **Severity**: `critical`
+- **Confidence**: `high`
+- **Violated invariant**: Unprivileged callers must not be able to reduce AMM-pair token balances/reserves or force reserve synchronization for price-moving pool inventory.
 
-- stage: `rca`
-- status: `blocked`
-- validation: `blocked`
-- blocker: missing /srv/helios/data/outputs/260605_bsc_by_token-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_bsc_by_token-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_bsc_by_token-3/artifacts/rca/report.json
+### Final root cause
 
-Internal artifacts are available under `artifacts/rca/`.
+BYToken exposes triggerAutoBurn() publicly, and that function calls _autoBurn(true). When contract-held BY is insufficient, _autoBurn(true) permits burning the remainder directly from the configured AMM pool and immediately calls pool.sync(), allowing any caller to reduce pool BY inventory and force AMM reserves to the distorted balance. The attacker triggered this branch in the same transaction and then used normal router/pair swaps to drain WBNB into BNB profit.
+
+### Affected contracts
+
+| Address | Name | Role | Implementation |
+|---|---|---|---|
+| `0x6f50cffecd4e00ecf7e442774c08c089450b62ca` | `BYToken` | `primary vulnerable contract` | `—` |
+| `0x1f358e18e0db68ff33c2319c8dad328edf9b7059` | `PancakePair` | `affected AMM pool whose reserves were distorted` | `—` |
+
+### Recommended fixes
+
+- Make triggerAutoBurn() privileged or remove public access to _autoBurn(true) so untrusted callers cannot enable pool burning.
+- Disallow _burn(pool, remaining) from public auto-burn paths; normal auto-burn should burn only contract-held BY unless an explicitly privileged maintenance path is used.
+- If pool burns remain necessary, separate them from token transfer/public trigger paths and require reserve/slippage checks plus controlled governance or role-gated execution before any pool.sync().
+
 
 ## Artifacts
 
@@ -154,8 +168,8 @@ Internal artifacts are available under `artifacts/rca/`.
 | Bundle index | `README.md` | generated |
 | Machine run summary | `report/run_summary.json` | generated |
 | Final integrated report | `report/REPORT.md` | generated |
-| RCA | `report/RCA.md` | generated fallback |
-| RCA structured report | `report/report.json` | missing optional |
+| RCA | `report/RCA.md` | included |
+| RCA structured report | `report/report.json` | included |
 | PoC | `poc/PoC.t.sol` | included |
 | PoC base support | `poc/LumosPoCBase.sol` | included |
 | Asset deltas | `evidence/asset_deltas.json` | included |
