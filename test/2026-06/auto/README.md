@@ -6,25 +6,25 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 
 - **Chain**: bsc (chain_id=56)
 - **Tx hash**: `0x07ba2ccf2b5c1aaca4c017af4fe87762a73ef7177f6ea8bb569367e908a0671d`
-- **Block**: unknown
-- **Final quality**: `blocked`
+- **Block**: 102432240
+- **Final quality**: `partial`
 - **Product/PoC gate**: `pass`
 - **Final-quality basis**: `poc_and_rca`
-- **Final-quality reason**: Verified economic PoC exists, but RCA is blocked: missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/report.json
-- **Elapsed**: 94.91s (94911 ms)
-- **Finding**: RCA blocked
+- **Final-quality reason**: Verified economic PoC, but RCA is partial.
+- **Elapsed**: 697.01s (697012 ms)
+- **Finding**: Helper selector created attacker LP entitlement using helper-held DTXT
 
 ## Signal context
 
 - **Protocol claim**: auto
-- **Detector source**: manual-ui
+- **Detector source**: manual-rca-rerun
 
 
 ## Pipeline timing
 
-- **Orchestrator wall time**: 31.65s (31654 ms)
+- **Orchestrator wall time**: 633.75s (633755 ms)
 
-- **Current stage-duration sum**: 94.91s (94911 ms)
+- **Current stage-duration sum**: 697.01s (697012 ms)
 
 | Stage | Artifact | Duration | Status |
 |---|---|---:|---|
@@ -38,7 +38,7 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 | `8` | `poc_sketch` | 60 ms | `success` |
 | `9` | `semantic` | 287 ms | `success` |
 | `agent_poc` | `agent_poc` | 23.10s (23097 ms) | `success` |
-| `rca` | `rca` | 31.65s (31654 ms) | `success` |
+| `rca` | `rca` | 633.75s (633755 ms) | `success` |
 
 ## Reproduction quality
 
@@ -47,8 +47,8 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 - **Forge build**: `pass`
 - **Forge test**: `pass`
 - **Proof kind**: `economic_proof`
-- **RCA status**: `blocked` / `blocked`
-- **RCA confidence**: `unknown`
+- **RCA status**: `partial` / `partial`
+- **RCA confidence**: `medium`
 
 ## Economic reproduction
 
@@ -126,14 +126,32 @@ _… truncated in final report; see source artifact for full text._
 
 ## Root cause analysis
 
-# RCA blocked
+- **Title**: Helper selector created attacker LP entitlement using helper-held DTXT
+- **Severity**: `high`
+- **Confidence**: `medium`
+- **Violated invariant**: A contract holding DTXT must not let an arbitrary caller use that inventory to mint LP or withdrawal rights for itself unless the caller owns the DTXT or passes an explicit entitlement/authorization check.
 
-- stage: `rca`
-- status: `blocked`
-- validation: `blocked`
-- blocker: missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260605_bsc_auto-3/artifacts/rca/report.json
+### Final root cause
 
-Internal artifacts are available under `artifacts/rca/`.
+In the current transaction, attacker callback frame 7 called unresolved selector 0x1f89d93b on 0xd2453ff82e1c5b568ddb260f1f0bb95169895428 after approving flashloaned USDT to that helper. The observed child/downstream path combined flashloaned USDT with DTXT held by the helper, minted PancakePair LP/right-to-withdraw to the attacker-controlled contract, then removed liquidity and swapped to drain USDT. The exact vulnerable branch or missing authorization predicate in selector 0x1f89d93b is not source-backed in the supplied artifacts, so this RCA is partial.
+
+### Affected contracts
+
+| Address | Name | Role | Implementation |
+|---|---|---|---|
+| `0xd2453ff82e1c5b568ddb260f1f0bb95169895428` | `unknown` | `primary vulnerable contract candidate` | `—` |
+| `0xac9bf7c320d4ce2d0ac978b83955dd67351897d2` | `DTXT` | `token-side liquidity classification contributor` | `—` |
+
+### Recommended fixes
+
+- In 0xd2453ff82e1c5b568ddb260f1f0bb95169895428 selector 0x1f89d93b, require caller ownership/position entitlement before transferring DTXT/USDT or minting LP to the caller.
+- In DTXT.sol _isLiquidity/_transfer, do not classify liquidity add/remove solely from PancakePair token0 balance versus reserves; bind liquidity exemptions to trusted router/pair flows and validate both-token contribution context.
+
+### Limitations
+
+- missing_assumption: source for 0xd2453ff82e1c5b568ddb260f1f0bb95169895428 and selector 0x1f89d93b is absent, so the exact branch and predicate cannot be proven.
+- selector/source gap prevents a complete patchable line number for the primary helper contract.
+- No bounded artifact decoded semantic names for the helper storage/position layout; no storage slot semantics are inferred.
 
 ## Artifacts
 
@@ -142,8 +160,8 @@ Internal artifacts are available under `artifacts/rca/`.
 | Bundle index | `README.md` | generated |
 | Machine run summary | `report/run_summary.json` | generated |
 | Final integrated report | `report/REPORT.md` | generated |
-| RCA | `report/RCA.md` | generated fallback |
-| RCA structured report | `report/report.json` | missing optional |
+| RCA | `report/RCA.md` | included |
+| RCA structured report | `report/report.json` | included |
 | PoC | `poc/PoC.t.sol` | included |
 | PoC base support | `poc/LumosPoCBase.sol` | included |
 | Asset deltas | `evidence/asset_deltas.json` | included |
