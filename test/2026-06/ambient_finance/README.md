@@ -10,8 +10,8 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 - **Final quality**: `blocked`
 - **Product/PoC gate**: `pass`
 - **Final-quality basis**: `poc_and_rca`
-- **Final-quality reason**: Verified economic PoC exists, but RCA is blocked: missing /srv/helios/data/outputs/260608_eth_ambient_finance-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260608_eth_ambient_finance-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260608_eth_ambient_finance-3/artifacts/rca/report.json
-- **Elapsed**: 473.55s (473552 ms)
+- **Final-quality reason**: Verified economic PoC exists, but RCA is blocked: missing /srv/helios/data/outputs/260608_eth_ambient_finance-6/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260608_eth_ambient_finance-6/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260608_eth_ambient_finance-6/artifacts/rca/report.json
+- **Elapsed**: 363.84s (363836 ms)
 - **Finding**: RCA blocked
 
 ## Signal context
@@ -22,23 +22,23 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 
 ## Pipeline timing
 
-- **Orchestrator wall time**: 318.74s (318742 ms)
+- **Orchestrator wall time**: 219.85s (219850 ms)
 
-- **Current stage-duration sum**: 473.55s (473552 ms)
+- **Current stage-duration sum**: 363.84s (363836 ms)
 
 | Stage | Artifact | Duration | Status |
 |---|---|---:|---|
-| `1` | `cefg` | 79.69s (79689 ms) | `success` |
-| `2` | `localize` | 155 ms | `success` |
-| `3` | `lift` | 482 ms | `success` |
-| `4` | `flow_context` | 20.80s (20805 ms) | `success` |
-| `5` | `enrich` | 12.86s (12855 ms) | `success` |
-| `6` | `context_pack` | 22 ms | `success` |
+| `1` | `cefg` | 78.83s (78826 ms) | `success` |
+| `2` | `localize` | 156 ms | `success` |
+| `3` | `lift` | 461 ms | `success` |
+| `4` | `flow_context` | 19.47s (19467 ms) | `success` |
+| `5` | `enrich` | 9.65s (9650 ms) | `success` |
+| `6` | `context_pack` | 23 ms | `success` |
 | `7` | `asset_delta` | 70 ms | `success` |
 | `8` | `poc_sketch` | 173 ms | `success` |
 | `9` | `semantic` | 551 ms | `success` |
-| `agent_poc` | `agent_poc` | 40.01s (40008 ms) | `success` |
-| `rca` | `rca` | 318.74s (318742 ms) | `success` |
+| `agent_poc` | `agent_poc` | 34.61s (34609 ms) | `success` |
+| `rca` | `rca` | 219.85s (219850 ms) | `success` |
 
 ## Reproduction quality
 
@@ -132,7 +132,7 @@ _… truncated in final report; see source artifact for full text._
 - stage: `rca`
 - status: `blocked`
 - validation: `blocked`
-- blocker: missing /srv/helios/data/outputs/260608_eth_ambient_finance-3/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260608_eth_ambient_finance-3/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260608_eth_ambient_finance-3/artifacts/rca/report.json
+- blocker: missing /srv/helios/data/outputs/260608_eth_ambient_finance-6/artifacts/rca/rca_iterations.jsonl; missing /srv/helios/data/outputs/260608_eth_ambient_finance-6/artifacts/rca/rca.md; missing /srv/helios/data/outputs/260608_eth_ambient_finance-6/artifacts/rca/report.json
 
 Internal artifacts are available under `artifacts/rca/`.
 
