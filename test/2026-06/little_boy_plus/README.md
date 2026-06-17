@@ -7,38 +7,38 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 - **Chain**: bsc (chain_id=56)
 - **Tx hash**: `0x55856d9fda4c5be5193561c7d775e823c3d6e499da44aab9da963daf61c50b0c`
 - **Block**: 104727184
-- **Final quality**: `pass`
+- **Final quality**: `partial`
 - **Product/PoC gate**: `pass`
 - **Final-quality basis**: `poc_and_rca`
-- **Final-quality reason**: Verified economic PoC and complete RCA.
-- **Elapsed**: 888.52s (888522 ms)
-- **Finding**: Post-open first LP stage backdates mining rewards to openTime
+- **Final-quality reason**: Verified economic PoC, but RCA is partial.
+- **Elapsed**: 867.87s (867869 ms)
+- **Finding**: Spot-reserve POL flush and LP/hashrate credit accepted attacker-controlled same-transaction pair state
 
 ## Signal context
 
 - **Protocol claim**: Little Boy Plus
-- **Detector source**: manual-rca-runtime-check
+- **Detector source**: manual-poc-readability-rerun
 
 
 ## Pipeline timing
 
-- **Orchestrator wall time**: 343.20s (343197 ms)
+- **Orchestrator wall time**: 431.21s (431214 ms)
 
-- **Current stage-duration sum**: 888.52s (888522 ms)
+- **Current stage-duration sum**: 867.87s (867869 ms)
 
 | Stage | Artifact | Duration | Status |
 |---|---|---:|---|
-| `cefg` | `cefg` | 131.83s (131833 ms) | `success` |
-| `localize` | `localize` | 197 ms | `success` |
-| `lift` | `lift` | 1.72s (1723 ms) | `success` |
-| `flow_context` | `flow_context` | 3.41s (3412 ms) | `success` |
-| `enrich` | `enrich` | 16.39s (16385 ms) | `success` |
-| `semantic` | `semantic` | 3.64s (3639 ms) | `success` |
-| `context_pack` | `context_pack` | 491 ms | `success` |
-| `asset_delta` | `asset_delta` | 281 ms | `success` |
-| `poc_sketch` | `poc_sketch` | 1.27s (1274 ms) | `success` |
-| `agent_poc` | `agent_poc` | 386.09s (386090 ms) | `success` |
-| `rca` | `rca` | 343.20s (343197 ms) | `success` |
+| `cefg` | `cefg` | 131.38s (131385 ms) | `success` |
+| `localize` | `localize` | 254 ms | `success` |
+| `lift` | `lift` | 1.86s (1857 ms) | `success` |
+| `flow_context` | `flow_context` | 4.42s (4421 ms) | `success` |
+| `enrich` | `enrich` | 15.51s (15514 ms) | `success` |
+| `semantic` | `semantic` | 4.16s (4160 ms) | `success` |
+| `context_pack` | `context_pack` | 465 ms | `success` |
+| `asset_delta` | `asset_delta` | 233 ms | `success` |
+| `poc_sketch` | `poc_sketch` | 1.57s (1575 ms) | `success` |
+| `agent_poc` | `agent_poc` | 276.79s (276791 ms) | `success` |
+| `rca` | `rca` | 431.21s (431214 ms) | `success` |
 
 ## Reproduction quality
 
@@ -47,8 +47,8 @@ _Deterministic final report assembled from existing LumosKit outputs; this final
 - **Forge build**: `pass`
 - **Forge test**: `pass`
 - **Proof kind**: `economic_proof`
-- **RCA status**: `complete` / `complete`
-- **RCA confidence**: `high`
+- **RCA status**: `partial` / `partial`
+- **RCA confidence**: `medium`
 
 ## Economic reproduction
 
@@ -130,29 +130,35 @@ _… truncated in final report; see source artifact for full text._
 
 ## Root cause analysis
 
-- **Title**: Post-open first LP stage backdates mining rewards to openTime
+- **Title**: Spot-reserve POL flush and LP/hashrate credit accepted attacker-controlled same-transaction pair state
 - **Severity**: `critical`
-- **Confidence**: `high`
-- **Violated invariant**: Newly credited hashrate must accrue mining rewards only from its actual LP stage or credit time, not from protocol openTime unless the stage is proven to predate trading open.
+- **Confidence**: `medium`
+- **Violated invariant**: POL execution and LP/hashrate credit must not be priced or credited from attacker-controlled same-block spot reserves without independent slippage, TWAP, or authenticated-liquidity bounds.
 
 ### Final root cause
 
-LBPHashrate._previewAccumulators preserves the openTime-to-current emission window whenever total hashrate supply is zero, node count is zero, lastEmissionUpdate equals openTime, and LBP.lastTransfer is nonzero. A post-open attacker can create the first staged LP position, receive hashrate via notifyCredit, then harvest rewards for the preserved historical window even though the hashrate did not exist during that window. The inflated LBP reward entitlement is then sold and used through standard PancakePair mint/swap logic.
+PolVault.flushPol() / _doFlushPol prices swaps and liquidity additions from current PancakePair reserves without slippage, TWAP, or manipulation bounds. During the Vault lock, the attacker supplied transient LBP/USDT pair balances, invoked the public POL flush, and then LBP/hLBP accounting accepted the resulting pair mint/reserve state as valid LP/hashrate entitlement. This produced a giant Cake-LP mint to the attack child and downstream USDT/WBNB/BNB profit. The exact hLBP reward/emission sub-branch that accounts for the full Little Boy Plus supply expansion is not fully source-mapped in the supplied frames, so the RCA is partial.
 
 ### Affected contracts
 
 | Address | Name | Role | Implementation |
 |---|---|---|---|
-| `0x5e3cbc82d020be91a989eb747934104e9ab585fe` | `LBPHashrate` | `primary vulnerable contract` | `—` |
-| `0x88886f0fd371dff856291badced45922bc888888` | `LBP` | `reward settlement and token mint controller` | `—` |
-| `0x00e3ea08fd8cbad955ec5d2292ad637670c31524` | `PancakePair` | `downstream LP mint and swap venue` | `—` |
+| `0x01c87119a0D1C3730534b8d909eFeB1911b9fdB0` | `PolVault` | `primary vulnerable contract` | `—` |
+| `0x88886f0fd371Dff856291bAdcEd45922BC888888` | `LBP` | `LP staging and settlement accounting` | `—` |
+| `0x5e3cbc82D020be91a989Eb747934104E9AB585Fe` | `LBPHashrate` | `hashrate entitlement crediting` | `—` |
+| `0x00e3Ea08fD8cbAD955Ec5D2292Ad637670C31524` | `PancakePair` | `downstream LP mint and swap accounting` | `—` |
 
 ### Recommended fixes
 
-- In LBPHashrate._previewAccumulators, do not preserve the openTime emission window solely because LBP.lastTransfer is nonzero; require source-tracked pre-open stage provenance or cap accrual to the recorded LP stage timestamp.
-- In the LBP/LBPHashrate settlement flow, store the LP stage timestamp and initialize newly credited hashrate userIndex to the accumulator value at that stage, preventing post-open first stagers from earning pre-stage emission.
-- Add regression tests for post-open first LP staging, PolVault onPolStart settlement, and immediate same-transaction harvest/sell paths.
+- In PolVault._swapLbpToUsdt and PolVault._addLiquidity, require TWAP/minAmountOut/minLiquidity/slippage bounds or restrict flush to a keeper/router path with precommitted bounds instead of relying on current pair reserves.
+- In LBP._stagePending, LBP._verifyAndSettle, and LBPHashrate.notifyCredit, bind LP/hashrate credit to authenticated and bounded liquidity-add inputs; reject manual pair donations, skim-shaped reserve manipulation, or same-block spot state as sole proof of user entitlement.
+- Patch direction: guard PolVault.sol:258-303 and the LBP/LBPHashrate credit path at LBP.sol:890-1044, LBP.sol:1436-1466, and LBPHashrate.sol:318-379 so attacker-controllable transient reserves cannot determine POL swap output, liquidity sizing, or hashrate credit.
 
+### Limitations
+
+- missing_assumption: the exact hLBP reward/emission sub-branch and source line that accounts for the full Little Boy Plus supply expansion could not be mapped from the supplied frames.
+- source_branch_gap: the artifacts support the manipulated reserve/POL/LP-credit mechanism, but not every internal LBPHashrate reward/emission transition needed for a complete RCA.
+- The RCA therefore identifies the source-backed vulnerable mechanism and patch points but does not claim a complete branch-by-branch proof for the entire token supply expansion.
 
 ## Artifacts
 
