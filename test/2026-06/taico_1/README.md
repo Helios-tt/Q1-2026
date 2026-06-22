@@ -7,7 +7,7 @@
 - **Tx hash**: [`0xb8befb015a67de8f40890b1f8667c597c3b66a52b388ec1c6cd28637fd65dd13`](https://etherscan.io/tx/0xb8befb015a67de8f40890b1f8667c597c3b66a52b388ec1c6cd28637fd65dd13)
 - **Block**: 25368908
 - **Economic reproduction**: exact — PoC reproduces 99–101% of incident net loss.
-- **Elapsed analysis time**: 627.44s (627437 ms)
+- **Elapsed analysis time**: 599.27s (599269 ms)
 
 ## Impact
 
@@ -23,35 +23,35 @@
 
 ## Root Cause
 
-- **Finding**: Destination bridge processed a 130 ETH message whose source-side entitlement is not proven in the supplied artifacts
-- **In short**: The current Ethereum transaction executes MainnetBridge/Bridge.processMessage, verifies a supplied SignalService proof, consumes ETH quota, and invokes the message recipient with 130 ETH.
+- **Finding**: Bridge message execution released 130 ETH from a prior remote-signal entitlement that is not proven in the supplied transaction scope
+- **In short**: The current transaction calls MainnetBridge.processMessage with a message whose hash is proven through SignalService, then the bridge consumes ETH quota and releases _message.value to the recipient.
 - **Severity**: `high`
 - **Confidence**: `medium`
-- **Violated invariant**: An Ethereum bridge ETH release must only occur for a source-chain bridge message whose proven signal is backed by corresponding value/custody entitlement for the same msgHash, recipient, and amount.
+- **Violated invariant**: A destination-chain bridge release must be backed by a source-chain message signal that was created by a value-escrowing sendMessage for the exact message hash and amount.
 
-The current Ethereum transaction executes MainnetBridge/Bridge.processMessage, verifies a supplied SignalService proof, consumes ETH quota, and invokes the message recipient with 130 ETH. The failed invariant would be that every ETH release must be backed by a valid source-chain bridge message and value/custody entitlement for the same message hash, recipien...
+The current transaction calls MainnetBridge.processMessage with a message whose hash is proven through SignalService, then the bridge consumes ETH quota and releases _message.value to the recipient. The in-transaction branch and 130 ETH effect are proven, but the supplied artifacts do not include the source-chain sendMessage or checkpoint-authoring provenanc...
 
 Mechanism:
 
-- The exploit entered through `processMessage((uint64,uint64,uint32,address,uint64,address,uint64,address,address,uint256,bytes),bytes) / selector 0x2035065e` before reaching the vulnerable accounting path.
-- The current Ethereum transaction executes MainnetBridge/Bridge.processMessage, verifies a supplied SignalService proof, consumes ETH quota, and invokes the message recipient with 130 ETH.
-- The accounting update violated the invariant: An Ethereum bridge ETH release must only occur for a source-chain bridge message whose proven signal is backed by corresponding value/custody entitlement for the same msgHash, recipient, and amount.
+- The exploit entered through `processMessage((uint64,uint64,uint32,address,uint64,address,uint64,address,address,uint256,bytes),bytes)` before reaching the vulnerable accounting path.
+- The current transaction calls MainnetBridge.processMessage with a message whose hash is proven through SignalService, then the bridge consumes ETH quota and releases _message.value to the recipient.
+- The accounting update violated the invariant: A destination-chain bridge release must be backed by a source-chain message signal that was created by a value-escrowing sendMessage for the exact message hash and amount.
 
 Key evidence:
 
-- PoC status and Foundry execution passed for the analyzed transaction.
-- Trace order shows processMessage calling SignalService, QuotaManager, then the 130 ETH recipient payout.
-- Frame 2 is the processMessage ancestor; frames 4 and 6 are proof/quota accounting; frame 9 is the downstream 130 ETH transfer.
+- PoC result reports status pass with forge build and test passing.
+- Attack flow identifies the replayed transaction, processMessage entrypoint, and 130 ETH economic payout.
+- Trace frontier links processMessage to proveSignalReceived, consumeQuota, and the final 130 ETH recipient call.
 
 ## Affected Contracts
 
 | Address | Name | Role |
 |---|---|---|
-| `0xd60247c6848b7ca29eddf63aa924e53db6ddd8ec` | `MainnetBridge proxy` | `primary bridge holding and releasing ETH` |
-| `0x9e0a24964e5397b566c1ed39258e21ab5e35c77c` | `SignalService proxy` | `proof verification gate` |
-| `0x91f67118dd47d502b1f0c354d0611997b022f29e` | `QuotaManager proxy` | `ETH quota accounting gate` |
+| `0xd60247c6848b7ca29eddf63aa924e53db6ddd8ec` | `ERC1967Proxy / MainnetBridge` | `primary bridge contract executing the payout branch` |
+| `0x9e0a24964e5397b566c1ed39258e21ab5e35c77c` | `ERC1967Proxy / SignalService` | `remote-signal proof gate consumed before payout` |
+| `0x91f67118dd47d502b1f0c354d0611997b022f29e` | `ERC1967Proxy / QuotaManager` | `secondary quota accounting gate` |
 
 ## Limitations
 
-- tx_scope_gap: the supplied artifacts cover the Ethereum processMessage transaction but not the source-chain sendMessage/custody transaction that created the proven signal.
-- a complete claim that the SignalService proof was forged or value-unbacked would require checkpoint/proof/source-chain provenance not present in the closed-world evidence.
+- tx_scope_gap: the decisive source-chain sendMessage or prior setup transaction that created the proven signal is not included in the supplied artifacts.
+- prior_state_provenance_gap: the transaction consumes a prior checkpoint/remote signal state, but the artifacts do not prove who authored that checkpoint or whether the remote signal was economically backed.
