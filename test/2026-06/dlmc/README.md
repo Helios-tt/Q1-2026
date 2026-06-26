@@ -7,7 +7,7 @@
 - **Tx hash**: [`0x151025d3f0a782340a74d30ef33a5fad044b838e74437a803f0652e70c231306`](https://bscscan.com/tx/0x151025d3f0a782340a74d30ef33a5fad044b838e74437a803f0652e70c231306)
 - **Block**: 106091607
 - **Economic reproduction**: unpriced — raw PoC proof passed, but USD comparison is incomplete.
-- **Elapsed analysis time**: 623.19s (623191 ms)
+- **Elapsed analysis time**: 623.55s (623552 ms)
 - **Detected at**: 2026-06-25T01:35:10+00:00
 - **Original alert**: https://x.com/TenArmorAlert/status/2069957542109958498
 
@@ -26,25 +26,25 @@
 
 ## Root Cause
 
-- **Finding**: DLMC buy/referral accounting inflated livePrice and allowed same-transaction redemption of referral DLMC for USDT
-- **In short**: The vulnerable path is the `registerAffiliate(address) -> approve(address,uint256) -> buy(uint256)` flow; it violated the value/accounting invariant below.
-- **Severity**: `high`
+- **Finding**: DLMC spot-balance price update lets flash-borrowed USDT inflate sell payouts
+- **In short**: The vulnerable path is the `buy(uint256)` flow; it violated the value/accounting invariant below.
+- **Severity**: `critical`
 - **Confidence**: `high`
-- **Violated invariant**: A DLMC balance redeemable through sell() must not be priced using a reserve/supply formula that includes temporary buy liquidity while excluding newly minted redeemable supply or relying on same-transaction investment to satisfy payout limits.
+- **Violated invariant**: DLMC livePrice and sell payouts must be based on durable, manipulation-resistant backing, not a same-transaction attacker-controllable USDT balance.
 
-DLMCToken buy(uint256) mints DLMC to address(this), records the buyer's same-transaction investment, and may grant the referrer sellable DLMC via _distributeReferralBonusOnBuy and _applyBurnAndDaoSplit. _updatePrice then includes the flash-borrowed USDT deposit in reserve but subtracts balanceOf(address(this)) from the circulating-supply denominator, so the ...
+DLMCToken.buy(uint256) accepts caller-supplied USDT and then calls _updatePrice(), whose branch computes livePrice from quoteToken.balanceOf(address(this)) minus only daoUsdtBalance. Flash-borrowed USDT sent through buy() is therefore counted as durable reserve backing, and DLMCToken.sell(uint256) uses the inflated livePrice to calculate sellValueUsdt18 and ...
 
 Mechanism:
 
-- The attacker reached the victim through the `registerAffiliate(address) -> approve(address,uint256) -> buy(uint256)` flow during the exploit.
-- DLMCToken buy(uint256) mints DLMC to address(this), records the buyer's same-transaction investment, and may grant the referrer sellable DLMC via _distributeReferralBonusOnBuy and _applyBurnAndDaoSplit.
-- The accounting update violated the invariant: A DLMC balance redeemable through sell() must not be priced using a reserve/supply formula that includes temporary buy liquidity while excluding newly minted redeemable supply or relying on same-transaction investment to satisfy payout limits.
+- The attacker reached the victim through the `buy(uint256)` flow during the exploit.
+- DLMCToken.buy(uint256) accepts caller-supplied USDT and then calls _updatePrice(), whose branch computes livePrice from quoteToken.balanceOf(address(this)) minus only daoUsdtBalance.
+- The accounting update violated the invariant: DLMC livePrice and sell payouts must be based on durable, manipulation-resistant backing, not a same-transaction attacker-controllable USDT balance.
 
 Key evidence:
 
-- PoC status, forge build, forge test, and economic proof all passed.
-- Trace flow shows Pancake swap callback into attacker, DLMC registerAffiliate/buy calls, child buy, DLMC sell, and USDT profit routing.
-- PoC reproduces the flash swap, parent and child DLMC buys, final sell, repayment, and USDT profit transfer.
+- PoC passed with forge build/test pass and economic proof status.
+- PoC performs Pancake flash swap, two DLMC buy calls using 420000e18 and 1000000e18 USDT amounts, reads livePrice/balances, sells DLMC, repays the pair, and routes USDT profit.
+- Frontier places the flash swap before two DLMC buy frames and the later DLMC sell frame; USDT approval/transfer frames are child or sibling mechanics.
 
 ## Affected Contracts
 
@@ -54,4 +54,5 @@ Key evidence:
 
 ## Limitations
 
-_No material limitations were recorded in the final RCA output._
+- The closed-world artifacts do not provide decoded event data for every DLMC bonus transfer, so exact per-bonus token attribution is inferred from source path plus frame/log correlation rather than full event decoding.
+- PoC result profit_token fields are null even though attack_flow and RPC/fund-flow artifacts identify USDT gains; the report uses RPC/fund-flow deltas for impact.
