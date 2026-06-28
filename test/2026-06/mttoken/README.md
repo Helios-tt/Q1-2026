@@ -7,9 +7,9 @@
 - **Tx hash**: [`0xe1e6aa5332deaf0fa0a3584113c17bedc906148730cbbc73efae16306121687b`](https://arbiscan.io/tx/0xe1e6aa5332deaf0fa0a3584113c17bedc906148730cbbc73efae16306121687b)
 - **Block**: 419829771
 - **Economic reproduction**: close — PoC reproduces the incident within the 80–110% net-loss band.
-- **Elapsed analysis time**: 888.41s (888411 ms)
+- **Elapsed analysis time**: 848.75s (848751 ms)
 - **Detected at**: 2026-06-25T13:07:18Z
-- **Original alert**: https://github.com/BackwardLabs/report/tree/main/exports/lumoskit-555581b0312b492da5ea4a161b2ae63b78c96c9b-partial-20260616T111006Z/cases/009_futureswap
+- **Original alert**: https://x.com/Wi11y010/status/2070383892016857245
 
 ## Impact
 
@@ -26,34 +26,34 @@
 
 ## Root Cause
 
-- **Finding**: Position accounting accepted an over-withdrawal through changePosition after attacker-controlled setup
-- **In short**: The victim proxy 0xf7ca7384cc6619866749955065f17bedd3ed80bc delegated changePosition(int256,int256,int256) to implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207.
+- **Finding**: changePosition allowed an under-collateralized negative margin withdrawal after attacker-controlled position accounting changes
+- **In short**: The victim proxy 0xf7ca7384cc6619866749955065f17bedd3ed80bc delegates changePosition(int256,int256,int256) to implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207.
 - **Severity**: `critical`
 - **Confidence**: `medium`
-- **Violated invariant**: A position owner must not be able to withdraw or settle more base/quote asset value than their post-action collateralized equity supports after funding, price, and solvency checks.
+- **Violated invariant**: A margin withdrawal must not exceed the account's verified withdrawable equity after current position size, PnL, funding, fees, and price/solvency checks are applied.
 
-The victim proxy 0xf7ca7384cc6619866749955065f17bedd3ed80bc delegated changePosition(int256,int256,int256) to implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207. The attacker opened and manipulated positions, then called changePosition(0, -894992852305, 0), which the protocol accepted as valid and settled value out of the victim.
+The victim proxy 0xf7ca7384cc6619866749955065f17bedd3ed80bc delegates changePosition(int256,int256,int256) to implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207. After attacker-controlled position setup and a large position/accounting change, the final drain frame calls changePosition(0, -894992852305, 0), and the victim accepts the negative margin wi...
 
 Mechanism:
 
-- The exploit entered through `changePosition(int256,int256,int256) / selector 0xa442c8be` before reaching the vulnerable accounting path.
-- The victim proxy 0xf7ca7384cc6619866749955065f17bedd3ed80bc delegated changePosition(int256,int256,int256) to implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207.
-- The accounting update violated the invariant: A position owner must not be able to withdraw or settle more base/quote asset value than their post-action collateralized equity supports after funding, price, and solvency checks.
+- The exploit entered through `changePosition(int256,int256,int256)` before reaching the vulnerable accounting path.
+- That path trusted attacker-controlled state while performing protected accounting updates.
+- The accounting update violated the invariant: A margin withdrawal must not exceed the account's verified withdrawable equity after current position size, PnL, funding, fees, and price/solvency checks are applied.
 
 Key evidence:
 
-- Foundry build/test and economic proof passed.
-- Places the flash-loan callback, helper calls, victim calls, and realized victim losses.
-- Shows the callback sequence, helper position setup, and final drain via changePosition(0, -894992852305, 0).
+- PoC, forge build/test, and economic proof status are pass.
+- Trace flow enters the attacker callback, performs victim calls, then final drain; economic effect records victim WETH and USDC losses.
+- Verified PoC sequence shows setup changePosition calls, a large position/accounting change, then drain() calling changePosition(0, -894992852305, 0).
 
 ## Affected Contracts
 
 | Address | Name | Role |
 |---|---|---|
-| `0xf7ca7384cc6619866749955065f17bedd3ed80bc` | `unknown` | `primary vulnerable proxy/storage contract` |
-| `0x010659727ad7716c239e206acd3ebee0fdc9e207` | `unknown` | `implementation containing changePosition logic` |
+| `0xf7ca7384cc6619866749955065f17bedd3ed80bc` | `unknown proxy` | `primary vulnerable contract` |
+| `0x010659727ad7716c239e206acd3ebee0fdc9e207` | `unknown implementation` | `primary vulnerable implementation` |
 
 ## Limitations
 
-- source_gap: no verified source directory exists for 0xf7ca7384cc6619866749955065f17bedd3ed80bc or implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207 under [internal artifact]
-- missing_branch_formula_gap: the exact changePosition branch, formula, and missing guard are not present in source or implementation pseudocode.
+- source_branch_gap: verified source for implementation 0x010659727ad7716c239e206acd3ebee0fdc9e207 is not present under [internal artifact].
+- the exact internal price/oracle/solvency or margin formula that should have rejected the withdrawal cannot be inspected in the supplied artifacts.

