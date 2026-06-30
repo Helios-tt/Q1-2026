@@ -1,5 +1,11 @@
 # Q1-2026 DeFi Incident PoC Archive
 
+<p align="center">
+  <a href="https://x.com/backwardlabs">
+    <img src="https://img.shields.io/badge/Follow%20on%20X-%40backwardlabs-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow @backwardlabs on X">
+  </a>
+</p>
+
 This is a DeFi security incident PoC archive generated and verified by BackwardLabs using Bakclight and AI-assisted analysis.
 
 The repository reproduces on-chain security incidents as Foundry tests and documents each case with an executable PoC, economic reproduction result, attack flow, and RCA(root cause analysis). Each incident directory contains a Solidity test file and its own incident README.
