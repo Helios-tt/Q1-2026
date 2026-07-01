@@ -7,7 +7,7 @@
 - **Tx hash**: [`0xe2320086b2815d21b0927839bd0e306466c29a68d38d5361e99dd21ec5472612`](https://etherscan.io/tx/0xe2320086b2815d21b0927839bd0e306466c29a68d38d5361e99dd21ec5472612)
 - **Block**: 25434062
 - **Economic reproduction**: exact — PoC reproduces 99–101% of incident net loss.
-- **Elapsed analysis time**: 1064.75s (1064751 ms)
+- **Elapsed analysis time**: 891.40s (891404 ms)
 - **Detected at**: 2026-07-01T01:30:57+00:00
 - **Original alert**: https://x.com/TenArmorAlert/status/2072130807356129726
 
@@ -27,35 +27,35 @@
 
 ## Root Cause
 
-- **Finding**: Pool borrow validation accepted ERC4626 wrapper collateral whose spot share value was manipulable in the same transaction
-- **In short**: The vulnerable path is the `borrow wGOOGLx, transfer to helper, helper supplies wGOOGLx collateral` flow; it violated the value/accounting invariant below.
+- **Finding**: Pool borrow accounting allowed repeated wrapped-token debt expansion against insufficient current collateral
+- **In short**: The vulnerable path is the `borrow(wGOOGLx,1414889025557658614,2,0,attacker)` flow; it violated the value/accounting invariant below.
 - **Severity**: `critical`
 - **Confidence**: `medium`
-- **Violated invariant**: Borrow authorization must use collateral values that cannot be inflated within the same transaction by direct ERC4626 underlying-balance manipulation or recursive borrow-supply loops.
+- **Violated invariant**: Every borrow must be bounded by the borrower's current collateral value and health after prior borrows and collateral-equivalent token movements in the same transaction.
 
-The attacker looped borrow and supply operations around wGOOGLx, then manipulated the wrapper's ERC4626 spot exchange rate by changing the wrapper's underlying balance. The Pool at 0x3eeeb3cd20f844a578807fc457388ceb9a67faa6 appears to have accepted that inflated wrapper collateral value during borrow validation and allowed final borrows of USDC and wrapped s...
+The Backed/Aave-style pool proxy at 0x3eeeb3cd20f844a578807fc457388ceb9a67faa6 accepted repeated borrow calls after a USDC supply while the attacker recycled borrowed wGOOGLx through another attacker contract. The transaction minted large variable-debt balances and transferred wrapped assets/USDC to the attacker, indicating the borrow path accepted an invali...
 
 Mechanism:
 
-- The attacker reached the victim through the `borrow wGOOGLx, transfer to helper, helper supplies wGOOGLx collateral` flow during the exploit.
-- The attacker looped borrow and supply operations around wGOOGLx, then manipulated the wrapper's ERC4626 spot exchange rate by changing the wrapper's underlying balance.
-- The accounting update violated the invariant: Borrow authorization must use collateral values that cannot be inflated within the same transaction by direct ERC4626 underlying-balance manipulation or recursive borrow-supply loops.
+- The attacker reached the victim through the `borrow(wGOOGLx,1414889025557658614,2,0,attacker)` flow during the exploit.
+- The Backed/Aave-style pool proxy at 0x3eeeb3cd20f844a578807fc457388ceb9a67faa6 accepted repeated borrow calls after a USDC supply while the attacker recycled borrowed wGOOGLx through another attacker contract.
+- The accounting update violated the invariant: Every borrow must be bounded by the borrower's current collateral value and health after prior borrows and collateral-equivalent token movements in the same transaction.
 
 Key evidence:
 
-- The reproduction passed build, test, and economic verification.
-- The PoC supplies flash-loaned USDC, loops borrow/supply of wGOOGLx, redeems and transfers underlying into the wrapper, then executes final borrow/drain helper calls.
-- The frontier identifies direct loss plus entitlement/accounting anomalies; representative frame 55 is a variable debt mint called from Pool frame 37.
+- PoC verification gate passed for status, execution, economic reproduction, forge build, and forge test.
+- Lists realized losses of wSPYx, wQQQx, wNVDAx, wMSTRx, USDC, and wTSLAx.
+- Shows protocol/storage holder losses and matching attacker/helper gains, including debt-token positive deltas.
 
 ## Affected Contracts
 
 | Address | Name | Role |
 |---|---|---|
-| `0x3eeeb3cd20f844a578807fc457388ceb9a67faa6` | `Pool proxy / unknown implementation` | `primary vulnerable contract` |
-| `0x14f37168ab9eafcd94d5b142a00e6e9b261bad48` | `WrappedBackedTokenImplementation` | `manipulable ERC4626 wrapper valuation source` |
-| `0xc84577a366bdc6ace161388dace77ff0a8958b9a` | `VariableDebtToken` | `downstream debt accounting contract` |
+| `0x3eeeb3cd20f844a578807fc457388ceb9a67faa6` | `InitializableImmutableAdminUpgradeabilityProxy` | `primary vulnerable pool proxy` |
+| `0x41d25b8918d3dc4de807d56fd43a82854036714b` | `variableDebtwGOOGLx` | `debt-token entitlement/effect contract` |
+| `0x0ec96784aa6f47e456e0ce4eb2a8b00f1a6c9b74` | `ewGOOGLx` | `wrapped/debt-token effect contract in repeated borrow path` |
 
 ## Limitations
 
-- source_branch_gap: Pool implementation source for 0xf7ba2c2b2e3b8c3c327b632e6bdff77840f06b34 is not present under [internal artifact], so the exact vulnerable Pool validation line cannot be cited.
-- the exact oracle/health/solvency branch that consumed the manipulated wrapper value is inferred from trace shape and exploit effects, not directly source-inspected.
+- missing_pool_implementation_source: victim_sources contains only the proxy source for 0x3eeeb3cd20f844a578807fc457388ceb9a67faa6, while the implementation 0xf7ba2c2b2e3b8c3c327b632e6bdff77840f06b34 is absent.
+- source_or_pseudocode_branch_gap: the exact borrow validation/account-data/oracle/health-factor branch is not present in supplied source or pseudocode.

